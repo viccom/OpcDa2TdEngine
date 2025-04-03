@@ -145,7 +145,7 @@ namespace OpcDaClient
                                     stmt.AddBatch();
                                     stmt.Exec();
                                 }
-                                Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] 错误: 插入数据到表{tableName}成功");
+                                Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] 正确: 插入数据到表{tableName}成功");
                             }
                             catch (Exception ex)
                             {
