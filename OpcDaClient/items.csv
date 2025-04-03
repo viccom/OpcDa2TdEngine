@@ -1,0 +1,5 @@
+点名,描述,类型,OPC_Item
+B1,布尔量1,bool,Random.Boolean
+F1,模拟量1,float,Random.Real4
+I1,数字量1,int,Random.Int1
+S1,字符量1,string,Random.String

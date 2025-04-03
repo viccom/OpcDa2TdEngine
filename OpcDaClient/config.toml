@@ -1,0 +1,9 @@
+[OpcDa]
+Host = "localhost"
+ProgID = "Matrikon.OPC.Simulation.1"
+[TdEngine]
+Host = "localhost"
+Port = 3306
+Dbname = "iot"
+Username = "root"
+Password = "taosdata"

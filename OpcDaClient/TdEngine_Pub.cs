@@ -1,0 +1,190 @@
+﻿using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.IO;
+using System.Threading;
+using System.Threading.Tasks;
+using Nett;
+using TDengine;
+using TDengine.Driver;
+using TDengine.Driver.Client;
+
+namespace OpcDaClient
+{
+    internal class TdEngine_Pub
+    {
+        private bool _running = true;
+        private Thread _tdThread;
+        private readonly OPCDA_Sub _opcDaSub;
+        private OPCDA_Sub.Config config;
+
+        private const int MaxQueueSize = 1000;
+        
+        public TdEngine_Pub(OPCDA_Sub opcDaSub)
+        {
+            _opcDaSub = opcDaSub;
+        }
+
+        public void Start()
+        {
+            Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] 正在启动TDengine线程...");
+            _tdThread = new Thread(StartTdEngineClient);
+            _tdThread.Start();
+            Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] TDengine线程已启动，线程ID: {_tdThread.ManagedThreadId}");
+        }
+
+        public void Stop()
+        {
+            _running = false;
+            _tdThread?.Join();
+        }
+
+        private void StartTdEngineClient()
+        {
+            Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] TDengine线程开始执行");
+            TDengine.Driver.ITDengineClient client = null;
+
+            try
+            {
+                Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] 正在读取TDengine配置文件...");
+                try
+                {
+                    config = Toml.ReadFile<OPCDA_Sub.Config>("config.toml");
+
+                    if (config?.TdEngine == null)
+                    {
+                        throw new Exception("配置文件中缺少TdEngine配置节");
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] 错误: 读取配置文件失败 - {ex.Message}");
+                    throw;
+                }
+
+                Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] TDengine配置节: Host={config.TdEngine.Host}, Port={config.TdEngine.Port}, Dbname={config.TdEngine.Dbname}");
+
+                try
+                {
+                    var connectionString = $"protocol=WebSocket;host={config.TdEngine.Host};port={config.TdEngine.Port};useSSL=false;username={config.TdEngine.Username};password={config.TdEngine.Password}";
+                    Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] 正在连接TDengine: {connectionString.Replace("password=" + config.TdEngine.Password, "password=******")}");
+                    var builder = new ConnectionStringBuilder(connectionString);
+                    client = DbDriver.Open(builder);
+                    Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] 成功连接到TDengine");
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] 错误: 连接TDengine失败 - {ex.Message}");
+                    throw;
+                }
+
+                // 检查并创建数据库
+                try
+                {
+                    Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] 正在创建数据库: {config.TdEngine.Dbname}");
+                    client.Exec($"CREATE DATABASE IF NOT EXISTS {config.TdEngine.Dbname}");
+                    client.Exec($"USE {config.TdEngine.Dbname}");
+                    Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] 成功创建并使用数据库: {config.TdEngine.Dbname}");
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] 错误: 数据库操作失败 - {ex.Message}");
+                    throw;
+                }
+
+                // 读取csv文件创建表结构
+                var csvLines = File.ReadAllLines("items.csv");
+                foreach (var line in csvLines.Skip(1))
+                {
+                    var parts = line.Split(',');
+                    if (parts.Length >= 4)
+                    {
+                        var tableName = parts[0];
+                        var fieldType = parts[2].ToLower();
+
+                        using (var stmt = client.StmtInit())
+                        {
+                            var createTableSql = $"CREATE TABLE IF NOT EXISTS {config.TdEngine.Dbname}.{tableName} (ts TIMESTAMP, val {GetTdEngineType(fieldType)})";
+                            Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] 正在创建表: {config.TdEngine.Dbname}.{tableName} 使用SQL: {createTableSql}");
+                            //stmt.Prepare(createTableSql);
+                            //stmt.Exec();
+                            client.Exec(createTableSql);
+                            Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] 成功创建表: {config.TdEngine.Dbname}.{tableName}");
+                        }
+                    }
+                }
+
+                // 数据处理循环
+                while (_running)
+                {
+                    if (_opcDaSub.TryGetData(out var dataMap))
+                    {
+                        if (dataMap.Count > MaxQueueSize)
+                        {
+                            Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] 警告: 数据队列大小({dataMap.Count})超过最大限制({MaxQueueSize})");
+                            continue;
+                        }
+
+                        foreach (var kvp in dataMap)
+                        {
+                            var tableName = kvp.Key;
+                            var item = kvp.Value;
+
+                            try
+                            {
+                                using (var stmt = client.StmtInit())
+                                {
+                                    stmt.Prepare($"INSERT INTO {tableName} VALUES (?, ?)");
+                                    stmt.BindRow(new object[] { item.Timestamp, ConvertToTdEngineValue(item.Value) });
+                                    stmt.AddBatch();
+                                    stmt.Exec();
+                                }
+                            }
+                            catch (Exception ex)
+                            {
+                                Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] 错误: 插入数据到表{tableName}失败 - {ex.Message}\n数据: Timestamp={item.Timestamp}, Value={item.Value}");
+                            }
+                        }
+                    }
+                    Thread.Sleep(100);
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"TDengine错误: {ex.Message}");
+            }
+            finally
+            {
+                client?.Dispose();
+            }
+
+        }
+        
+        private string GetTdEngineType(string type)
+        {
+            switch (type)
+            {
+                case "bool": return "BOOL";
+                case "int": return "INT";
+                case "float": return "FLOAT";
+                case "double": return "DOUBLE";
+                case "string": return "BINARY(100)";
+                default: return "DOUBLE";
+            }
+        }
+        
+        private object ConvertToTdEngineValue(object value)
+        {
+            if (value == null) return DBNull.Value;
+            
+            try
+            {
+                return Convert.ChangeType(value, value.GetType());
+            }
+            catch
+            {
+                return value.ToString();
+            }
+        }
+    }
+}
