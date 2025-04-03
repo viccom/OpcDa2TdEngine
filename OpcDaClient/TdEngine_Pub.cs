@@ -36,7 +36,10 @@ namespace OpcDaClient
         public void Stop()
         {
             _running = false;
-            _tdThread?.Join();
+            if (_tdThread != null && _tdThread.IsAlive)
+            {
+                _tdThread.Join(2000);
+            }
         }
 
         private void StartTdEngineClient()
@@ -125,6 +128,9 @@ namespace OpcDaClient
                             continue;
                         }
 
+                        // 增加运行状态检查
+                        if (!_running) break;
+
                         foreach (var kvp in dataMap)
                         {
                             var tableName = kvp.Key;
@@ -139,6 +145,7 @@ namespace OpcDaClient
                                     stmt.AddBatch();
                                     stmt.Exec();
                                 }
+                                Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] 错误: 插入数据到表{tableName}成功");
                             }
                             catch (Exception ex)
                             {
@@ -146,7 +153,12 @@ namespace OpcDaClient
                             }
                         }
                     }
-                    Thread.Sleep(100);
+                    // 缩短等待间隔并检查运行状态
+                    for (int i = 0; i < 10; i++)
+                    {
+                        if (!_running) break;
+                        Thread.Sleep(10);
+                    }
                 }
             }
             catch (Exception ex)

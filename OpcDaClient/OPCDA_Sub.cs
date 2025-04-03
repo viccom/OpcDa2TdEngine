@@ -27,6 +27,10 @@ namespace OpcDaClient
         public void Stop()
         {
             _running = false;
+            if (_opcThread != null && _opcThread.IsAlive)
+            {
+                _opcThread.Join(2000);
+            }
         }
 
         private void StartOpcClient()
@@ -107,7 +111,7 @@ namespace OpcDaClient
         private void OnTransactionCompleted(object group, object hReq, ItemValueResult[] items)
         {
             // Console.WriteLine("------------------->");
-            // Console.WriteLine("DataChanged ...");
+            Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] DataChanged ... items count: {items.GetLength(0)}");
             
             var dataMap = new Dictionary<string, ItemValueResult>();
             
