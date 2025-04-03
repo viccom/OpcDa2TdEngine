@@ -9,22 +9,31 @@ using TDengine;
 using TDengine.Driver;
 using TDengine.Driver.Client;
 
+// 命名空间OpcDaClient内部的TdEngine_Pub类
 namespace OpcDaClient
 {
+    // TdEngine_Pub类负责与TDengine数据库进行通信
     internal class TdEngine_Pub
     {
+        // 标记线程是否正在运行
         private bool _running = true;
+        // TDengine数据库操作线程
         private Thread _tdThread;
+        // OPCDA_Sub实例，用于数据订阅
         private readonly OPCDA_Sub _opcDaSub;
+        // 配置信息
         private OPCDA_Sub.Config config;
 
+        // 定义最大队列大小常量
         private const int MaxQueueSize = 1000;
-        
+
+        // 构造函数，接收一个OPCDA_Sub实例
         public TdEngine_Pub(OPCDA_Sub opcDaSub)
         {
             _opcDaSub = opcDaSub;
         }
 
+        // 启动TDengine线程
         public void Start()
         {
             Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] 正在启动TDengine线程...");
@@ -33,6 +42,7 @@ namespace OpcDaClient
             Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] TDengine线程已启动，线程ID: {_tdThread.ManagedThreadId}");
         }
 
+        // 停止TDengine线程
         public void Stop()
         {
             _running = false;
@@ -42,6 +52,7 @@ namespace OpcDaClient
             }
         }
 
+        // TDengine客户端启动方法
         private void StartTdEngineClient()
         {
             Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] TDengine线程开始执行");
@@ -171,7 +182,8 @@ namespace OpcDaClient
             }
 
         }
-        
+
+        // 根据数据类型获取TDengine中的类型
         private string GetTdEngineType(string type)
         {
             switch (type)
@@ -184,11 +196,12 @@ namespace OpcDaClient
                 default: return "DOUBLE";
             }
         }
-        
+
+        // 将数据转换为TDengine中的值
         private object ConvertToTdEngineValue(object value)
         {
             if (value == null) return DBNull.Value;
-            
+
             try
             {
                 return Convert.ChangeType(value, value.GetType());

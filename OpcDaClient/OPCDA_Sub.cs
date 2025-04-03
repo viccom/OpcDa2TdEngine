@@ -10,13 +10,23 @@ using Opc.Da;
 
 namespace OpcDaClient
 {
+    /// <summary>
+    /// OPC DA客户端订阅类，负责与OPC服务器建立连接、订阅数据变化并处理接收到的数据
+    /// </summary>
     internal class OPCDA_Sub
     {
+        // 线程运行状态标志
         private bool _running = true;
+        // OPC客户端线程
         private Thread _opcThread;
+        // 数据队列，用于存储从OPC服务器接收到的数据
         private ConcurrentQueue<Dictionary<string, ItemValueResult>> _dataQueue = new ConcurrentQueue<Dictionary<string, ItemValueResult>>();
+        // 最大队列大小，防止无限制增长导致内存溢出
         private const int MAX_QUEUE_SIZE = 10000;
 
+        /// <summary>
+        /// 启动OPC DA客户端线程
+        /// </summary>
         public void Start()
         {
             Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] 正在启动OPCDA_Sub线程...");
@@ -24,6 +34,9 @@ namespace OpcDaClient
             _opcThread.Start();
         }
 
+        /// <summary>
+        /// 停止OPC DA客户端线程
+        /// </summary>
         public void Stop()
         {
             _running = false;
@@ -33,6 +46,9 @@ namespace OpcDaClient
             }
         }
 
+        /// <summary>
+        /// OPC客户端线程的主方法，负责读取配置、连接OPC服务器、订阅数据
+        /// </summary>
         private void StartOpcClient()
         {
             try
@@ -89,6 +105,11 @@ namespace OpcDaClient
             }
         }
 
+        /// <summary>
+        /// 从CSV文件中读取OPC项
+        /// </summary>
+        /// <param name="filePath">CSV文件路径</param>
+        /// <returns>Item数组</returns>
         private Item[] ReadItemsFromCsv(string filePath)
         {
             var lines = File.ReadAllLines(filePath);
@@ -108,6 +129,12 @@ namespace OpcDaClient
             return items.ToArray();
         }
 
+        /// <summary>
+        /// 数据变化事件处理方法，当订阅的数据发生变化时调用
+        /// </summary>
+        /// <param name="group">订阅组</param>
+        /// <param name="hReq">请求句柄</param>
+        /// <param name="items">发生变化的项</param>
         private void OnTransactionCompleted(object group, object hReq, ItemValueResult[] items)
         {
             // Console.WriteLine("------------------->");
@@ -117,14 +144,6 @@ namespace OpcDaClient
             
             for (int i = 0; i < items.GetLength(0); i++)
             {
-                //Console.WriteLine("Item DataChange -   ItemId:    {0}", items[i].ItemName);
-                //Console.WriteLine("                    Value:     {0,-20}", items[i].Value);
-                //Console.WriteLine("                    TimeStamp: {0:00}:{1:00}:{2:00}.{3:000}", 
-                //                                        items[i].Timestamp.Hour,
-                //                                        items[i].Timestamp.Minute,
-                //                                        items[i].Timestamp.Second,
-                //                                        items[i].Timestamp.Millisecond);
-                
                 // 获取csv中的点名作为key
                 var csvLines = File.ReadAllLines("items.csv");
                 foreach (var line in csvLines.Skip(1))
@@ -151,23 +170,37 @@ namespace OpcDaClient
             // Console.WriteLine("-------------------<");
         }
         
+        /// <summary>
+        /// 尝试获取并移除队列中的数据
+        /// </summary>
+        /// <param name="data">移除的数据</param>
+        /// <returns>是否成功获取数据</returns>
         public bool TryGetData(out Dictionary<string, ItemValueResult> data)
         {
             return _dataQueue.TryDequeue(out data);
         }
 
+        /// <summary>
+        /// 配置类，包含OPC DA和TD Engine的配置信息
+        /// </summary>
         public class Config
         {
             public OpcDaConfig OpcDa { get; set; }
             public TdEngineConfig TdEngine { get; set; }
         }
 
+        /// <summary>
+        /// OPC DA配置类
+        /// </summary>
         public class OpcDaConfig
         {
             public string Host { get; set; }
             public string ProgID { get; set; }
         }
 
+        /// <summary>
+        /// TD Engine配置类
+        /// </summary>
         public class TdEngineConfig
         {
             public string Host { get; set; }
