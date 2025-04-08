@@ -51,57 +51,138 @@ namespace OpcDaClient
         /// </summary>
         private void StartOpcClient()
         {
-            try
-            {
-                Console.WriteLine("正在读取配置文件config.toml...");
-                var config = Toml.ReadFile<Config>("config.toml");
-                Console.WriteLine($"已加载配置文件: {Newtonsoft.Json.JsonConvert.SerializeObject(config)}");
-                
-                if (config == null)
-                {
-                    throw new Exception("配置文件读取失败，返回null");
-                }
-                if (config.OpcDa == null)
-                {
-                    throw new Exception("配置文件中缺少OpcDa配置节");
-                }
-                Console.WriteLine($"OpcDa配置节: Host={config.OpcDa.Host}, ProgID={config.OpcDa.ProgID}");
-                if (string.IsNullOrEmpty(config.OpcDa.Host) || string.IsNullOrEmpty(config.OpcDa.ProgID))
-                {
-                    throw new Exception("OpcDa配置节中缺少Host或ProgID");
-                }
-                
-                var items = ReadItemsFromCsv("items.csv");
-                Console.WriteLine($"已加载{items.Length}个OPC项");
+            Console.WriteLine("正在读取配置文件config.toml...");
+            var config = Toml.ReadFile<Config>("config.toml");
+            Console.WriteLine($"已加载配置文件: {Newtonsoft.Json.JsonConvert.SerializeObject(config)}");
 
-                Console.WriteLine($"正在连接OPC服务器: opcda://{config.OpcDa.Host}/{config.OpcDa.ProgID}");
-                URL url = new URL($"opcda://{config.OpcDa.Host}/{config.OpcDa.ProgID}");
+            if (config == null)
+            {
+                throw new Exception("配置文件读取失败，返回null");
+            }
+            if (config.OpcDa == null)
+            {
+                throw new Exception("配置文件中缺少OpcDa配置节");
+            }
+            Console.WriteLine($"OpcDa配置节: Host={config.OpcDa.Host}, ProgID={config.OpcDa.ProgID}");
+            if (string.IsNullOrEmpty(config.OpcDa.Host) || string.IsNullOrEmpty(config.OpcDa.ProgID))
+            {
+                throw new Exception("OpcDa配置节中缺少Host或ProgID");
+            }
+
+            var items = ReadItemsFromCsv("items.csv");
+            Console.WriteLine($"已加载{items.Length}个OPC项");
+
+            Console.WriteLine($"正在连接OPC服务器: opcda://{config.OpcDa.Host}/{config.OpcDa.ProgID}");
+            URL url = new URL($"opcda://{config.OpcDa.Host}/{config.OpcDa.ProgID}"); try
+            {
                 Opc.Da.Server server = null;
                 OpcCom.Factory fact = new OpcCom.Factory();
                 server = new Opc.Da.Server(fact, null);
 
-                server.Connect(url, new ConnectData(new System.Net.NetworkCredential()));
+                try
+                {
+                    server.Connect(url, new ConnectData(new System.Net.NetworkCredential()));
+                    Console.WriteLine("OPC服务器连接成功");
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"OPC服务器连接失败: {ex.Message}");
+                    throw;
+                }
 
                 Subscription group;
                 SubscriptionState groupState = new SubscriptionState();
                 groupState.Name = "Group";
                 groupState.Active = true;
                 groupState.UpdateRate = 1000;
-                group = (Subscription)server.CreateSubscription(groupState);
+                groupState.ClientHandle = 1;
+                groupState.ServerHandle = 1;
+                groupState.Deadband = 0;
 
-                items = group.AddItems(items);
-                group.DataChanged += new DataChangedEventHandler(OnTransactionCompleted);
+                try
+                {
+                    group = (Subscription)server.CreateSubscription(groupState);
+                    Console.WriteLine("订阅组创建成功");
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"订阅组创建失败: {ex.Message}");
+                    throw;
+                }
+
+                try
+                {
+                    items = group.AddItems(items);
+                    Console.WriteLine("OPC项添加成功");
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"OPC项添加失败: {ex.Message}");
+                    throw;
+                }
+
+                //同步读取所有项的值
+                try
+                {
+                    ItemValueResult[] syncValues = group.Read(group.Items);
+                    Console.WriteLine("同步读数据成功");
+                    //以下遍历读到的全部值
+                    foreach (ItemValueResult value in syncValues)
+                    {
+                        Console.WriteLine("同步读：ITEM：{0}，value：{1}，quality：{2}", value.ItemName, value.Value, value.Quality);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"同步读数据失败: {ex.Message}");
+                    throw;
+                }
+
+                //异步读取所有项的值
+                try
+                {
+                    IRequest quest = null;
+                    group.Read(group.Items, 1, this.AsyncReadComplete, out quest);
+                    Console.WriteLine("异步读数据成功");
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"异步读数据失败: {ex.Message}");
+                    //throw;
+                }
+
+                try
+                {
+                    //注册回调事件
+                    group.DataChanged += new DataChangedEventHandler(this.OnTransactionCompleted);
+                    Console.WriteLine("数据变化回调注册成功");
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"数据变化回调注册失败: {ex.Message}");
+                    //throw;
+                }
 
                 while (_running)
                 {
                     Thread.Sleep(100);
                 }
 
+                //取消回调事件
+                group.DataChanged -= new Opc.Da.DataChangedEventHandler(this.OnTransactionCompleted);
+                //移除组内item
+                group.RemoveItems(group.Items);
+                //结束：释放各资源
+                //通知服务器要求删除组。
+                server.CancelSubscription(group);
+                //强制.NET资源回收站回收该subscription的所有资源。
+                group.Dispose();
+                //强制.NET资源回收站回收该server的所有资源。
                 server.Disconnect();
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Error: {ex.Message}");
+                Console.WriteLine($"OPC Error: {ex.Message}");
             }
         }
 
@@ -129,6 +210,21 @@ namespace OpcDaClient
             return items.ToArray();
         }
 
+        //ReadComplete回调
+        public void AsyncReadComplete(object requestHandle, ItemValueResult[] values)
+        {
+            //Console.WriteLine("发生异步读name:{0},value:{1}", values[0].ItemName, values[0].Value);
+            //以下遍历异步读到的全部值
+            foreach (ItemValueResult value in values)
+            {
+                Console.WriteLine("异步读：ITEM：{0}，value：{1}，quality：{2}", value.ItemName, value.Value, value.Quality);
+            }
+            if ((int)requestHandle == 1)
+            {
+                Console.WriteLine("事件信号句柄为{0}", requestHandle);
+            }
+        }
+
         /// <summary>
         /// 数据变化事件处理方法，当订阅的数据发生变化时调用
         /// </summary>
@@ -139,9 +235,9 @@ namespace OpcDaClient
         {
             // Console.WriteLine("------------------->");
             Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] DataChanged ... items count: {items.GetLength(0)}");
-            
+            Console.WriteLine("事件信号句柄为{0}", hReq);
             var dataMap = new Dictionary<string, ItemValueResult>();
-            
+
             for (int i = 0; i < items.GetLength(0); i++)
             {
                 // 获取csv中的点名作为key
@@ -156,7 +252,7 @@ namespace OpcDaClient
                     }
                 }
             }
-            
+
             // 添加到队列
             if (_dataQueue.Count < MAX_QUEUE_SIZE)
             {
@@ -166,10 +262,10 @@ namespace OpcDaClient
             {
                 Console.WriteLine("Warning: Data queue is full, dropping data");
             }
-            
+
             // Console.WriteLine("-------------------<");
         }
-        
+
         /// <summary>
         /// 尝试获取并移除队列中的数据
         /// </summary>
