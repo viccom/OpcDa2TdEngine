@@ -56,6 +56,17 @@
     <Reference Include="ConcurrentQueue, Version=1.0.0.0, Culture=neutral, processorArchitecture=x86">
       <HintPath>..\packages\ConcurrentQueue.1.0.0.0\lib\net40-Client\ConcurrentQueue.exe</HintPath>
     </Reference>
+    <Reference Include="Nancy, Version=2.0.0.0, Culture=neutral, processorArchitecture=MSIL">
+      <HintPath>..\packages\Nancy.2.0.0\lib\net452\Nancy.dll</HintPath>
+    </Reference>
+    <Reference Include="Nancy.Hosting.Aspnet, Version=2.0.0.0, Culture=neutral, processorArchitecture=MSIL">
+      <HintPath>..\packages\Nancy.Hosting.Aspnet.2.0.0\lib\net452\Nancy.Hosting.Aspnet.dll</HintPath>
+    </Reference>
+    <Reference Include="Nancy.Hosting.Self, Version=2.0.0.0, Culture=neutral, processorArchitecture=MSIL">
+      <HintPath>..\packages\Nancy.Hosting.Self.2.0.0\lib\net452\Nancy.Hosting.Self.dll</HintPath>
+    </Reference>
+    <Reference Include="System.Configuration" />
+    <Reference Include="System.Web" />
     <Reference Include="TDengine.Connector">
       <HintPath>packages\TDengine.Connector.3.1.6\lib\netstandard2.0\TDengine.Connector.dll</HintPath>
     </Reference>
@@ -87,9 +98,11 @@
     </Reference>
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="CustomBootstrapper.cs" />
     <Compile Include="OPCDA_Sub.cs" />
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
+    <Compile Include="ServiceStatusModule.cs" />
     <Compile Include="TdEngine_Pub.cs" />
   </ItemGroup>
   <ItemGroup>
