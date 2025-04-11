@@ -15,6 +15,7 @@ namespace OpcDaSubscription
     {
         public ServiceStatusModule() : base("/apiv1")
         {
+            // GET //service_Status 接口，返回线程状态
             Get("/service_Status", _ =>
             {
                 // 返回服务状态的JSON数据
@@ -31,7 +32,7 @@ namespace OpcDaSubscription
                 return Response.AsJson(response);
             });
 
-            // 修改：POST /apiv1/start 接口，增加判断避免重复启动
+            // POST /apiv1/start 接口，增加判断避免重复启动
             Post("/start", _ =>
             {
                 var data = this.Bind<ServiceRequest>(); // 由 JObject 改为 ServiceRequest
@@ -95,7 +96,7 @@ namespace OpcDaSubscription
                 return Response.AsJson(invalidResponse);
             });
 
-            // 修改：POST /apiv1/stop 接口，增加判断避免重复停止
+            // POST /apiv1/stop 接口，增加判断避免重复停止
             Post("/stop", _ =>
             {
                 var data = this.Bind<ServiceRequest>(); // 由 JObject 改为 ServiceRequest
@@ -157,7 +158,7 @@ namespace OpcDaSubscription
                 return Response.AsJson(invalidResponse);
             });
 
-            // 新增：GET /apiv1/rtdata 接口，返回 OPCDA_Sub LiteDB 中存储的数据
+            // GET /apiv1/rtdata 接口，返回 OPCDA_Sub LiteDB 中存储的数据
             Get("/rtdata", _ =>
             {
                 if (Program.opcDaSubInstance != null)

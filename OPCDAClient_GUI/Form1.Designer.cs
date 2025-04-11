@@ -30,20 +30,16 @@
         {
             tabControl1 = new TabControl();
             tabPage1 = new TabPage();
-            checkBox1 = new CheckBox();
-            label14 = new Label();
             groupBox1 = new GroupBox();
             groupBox6 = new GroupBox();
-            richTextBox1 = new RichTextBox();
+            logsText = new RichTextBox();
             groupBox5 = new GroupBox();
-            button2 = new Button();
-            label11 = new Label();
+            tdengine_bt = new Button();
+            tdengine_run = new Label();
             label9 = new Label();
-            label7 = new Label();
-            label1 = new Label();
             groupBox4 = new GroupBox();
-            button1 = new Button();
-            label10 = new Label();
+            opcda_bt = new Button();
+            opcda_run = new Label();
             label8 = new Label();
             tabPage2 = new TabPage();
             dataView = new DataGridView();
@@ -81,6 +77,11 @@
             textBox2 = new TextBox();
             label2 = new Label();
             textBox1 = new TextBox();
+            label1 = new Label();
+            Inst_install = new CheckBox();
+            label14 = new Label();
+            Inst_run = new CheckBox();
+            restart = new Button();
             tabControl1.SuspendLayout();
             tabPage1.SuspendLayout();
             groupBox1.SuspendLayout();
@@ -102,7 +103,7 @@
             tabControl1.Controls.Add(tabPage2);
             tabControl1.Controls.Add(tabPage3);
             tabControl1.Font = new Font("Microsoft YaHei UI", 12F, FontStyle.Regular, GraphicsUnit.Point, 134);
-            tabControl1.Location = new Point(0, -2);
+            tabControl1.Location = new Point(0, 50);
             tabControl1.Margin = new Padding(4);
             tabControl1.Name = "tabControl1";
             tabControl1.SelectedIndex = 0;
@@ -111,8 +112,6 @@
             // 
             // tabPage1
             // 
-            tabPage1.Controls.Add(checkBox1);
-            tabPage1.Controls.Add(label14);
             tabPage1.Controls.Add(groupBox1);
             tabPage1.Font = new Font("Microsoft YaHei UI", 12F, FontStyle.Regular, GraphicsUnit.Point, 134);
             tabPage1.Location = new Point(4, 30);
@@ -124,153 +123,113 @@
             tabPage1.Text = "概览";
             tabPage1.UseVisualStyleBackColor = true;
             // 
-            // checkBox1
-            // 
-            checkBox1.Appearance = Appearance.Button;
-            checkBox1.AutoSize = true;
-            checkBox1.BackColor = Color.SeaGreen;
-            checkBox1.Checked = true;
-            checkBox1.CheckState = CheckState.Checked;
-            checkBox1.FlatStyle = FlatStyle.Flat;
-            checkBox1.Location = new Point(142, 12);
-            checkBox1.Name = "checkBox1";
-            checkBox1.Size = new Size(68, 31);
-            checkBox1.TabIndex = 3;
-            checkBox1.Text = "已安装";
-            checkBox1.UseVisualStyleBackColor = false;
-            // 
-            // label14
-            // 
-            label14.AutoSize = true;
-            label14.Location = new Point(18, 17);
-            label14.Name = "label14";
-            label14.Size = new Size(122, 21);
-            label14.TabIndex = 2;
-            label14.Text = "后台服务安装：";
-            // 
             // groupBox1
             // 
             groupBox1.Controls.Add(groupBox6);
             groupBox1.Controls.Add(groupBox5);
-            groupBox1.Controls.Add(label7);
-            groupBox1.Controls.Add(label1);
             groupBox1.Controls.Add(groupBox4);
-            groupBox1.Location = new Point(8, 58);
+            groupBox1.Location = new Point(8, 17);
             groupBox1.Name = "groupBox1";
-            groupBox1.Size = new Size(985, 586);
+            groupBox1.Size = new Size(985, 627);
             groupBox1.TabIndex = 0;
             groupBox1.TabStop = false;
             groupBox1.Text = "后台服务状态";
             // 
             // groupBox6
             // 
-            groupBox6.Controls.Add(richTextBox1);
-            groupBox6.Location = new Point(27, 236);
+            groupBox6.Controls.Add(logsText);
+            groupBox6.Location = new Point(27, 159);
             groupBox6.Name = "groupBox6";
-            groupBox6.Size = new Size(933, 369);
+            groupBox6.Size = new Size(933, 446);
             groupBox6.TabIndex = 4;
             groupBox6.TabStop = false;
             groupBox6.Text = "程序日志：";
             // 
-            // richTextBox1
+            // logsText
             // 
-            richTextBox1.Location = new Point(6, 27);
-            richTextBox1.Name = "richTextBox1";
-            richTextBox1.Size = new Size(921, 317);
-            richTextBox1.TabIndex = 0;
-            richTextBox1.Text = "";
+            logsText.Location = new Point(6, 27);
+            logsText.Name = "logsText";
+            logsText.Size = new Size(921, 413);
+            logsText.TabIndex = 0;
+            logsText.Text = "";
             // 
             // groupBox5
             // 
-            groupBox5.Controls.Add(button2);
-            groupBox5.Controls.Add(label11);
+            groupBox5.Controls.Add(tdengine_bt);
+            groupBox5.Controls.Add(tdengine_run);
             groupBox5.Controls.Add(label9);
-            groupBox5.Location = new Point(519, 96);
+            groupBox5.Location = new Point(519, 27);
             groupBox5.Name = "groupBox5";
             groupBox5.Size = new Size(441, 113);
             groupBox5.TabIndex = 3;
             groupBox5.TabStop = false;
             groupBox5.Text = "TdEngine写数服务";
             // 
-            // button2
+            // tdengine_bt
             // 
-            button2.Location = new Point(310, 40);
-            button2.Name = "button2";
-            button2.Size = new Size(90, 38);
-            button2.TabIndex = 2;
-            button2.Text = "button2";
-            button2.UseVisualStyleBackColor = true;
+            tdengine_bt.Location = new Point(310, 39);
+            tdengine_bt.Name = "tdengine_bt";
+            tdengine_bt.Size = new Size(90, 38);
+            tdengine_bt.TabIndex = 2;
+            tdengine_bt.Text = "button2";
+            tdengine_bt.UseVisualStyleBackColor = true;
+            tdengine_bt.Click += tdengine_bt_Click;
             // 
-            // label11
+            // tdengine_run
             // 
-            label11.AutoSize = true;
-            label11.Location = new Point(165, 49);
-            label11.Name = "label11";
-            label11.Size = new Size(64, 21);
-            label11.TabIndex = 1;
-            label11.Text = "label11";
+            tdengine_run.AutoSize = true;
+            tdengine_run.ForeColor = SystemColors.ButtonHighlight;
+            tdengine_run.Location = new Point(165, 48);
+            tdengine_run.Name = "tdengine_run";
+            tdengine_run.Size = new Size(64, 21);
+            tdengine_run.TabIndex = 1;
+            tdengine_run.Text = "label11";
             // 
             // label9
             // 
             label9.AutoSize = true;
-            label9.Location = new Point(25, 49);
+            label9.Location = new Point(25, 48);
             label9.Name = "label9";
             label9.Size = new Size(90, 21);
             label9.TabIndex = 0;
             label9.Text = "服务状态：";
             // 
-            // label7
-            // 
-            label7.AutoSize = true;
-            label7.Location = new Point(449, 58);
-            label7.Name = "label7";
-            label7.Size = new Size(30, 21);
-            label7.TabIndex = 2;
-            label7.Text = ".....";
-            // 
-            // label1
-            // 
-            label1.AutoSize = true;
-            label1.Location = new Point(291, 58);
-            label1.Name = "label1";
-            label1.Size = new Size(122, 21);
-            label1.TabIndex = 1;
-            label1.Text = "程序运行状态：";
-            // 
             // groupBox4
             // 
-            groupBox4.Controls.Add(button1);
-            groupBox4.Controls.Add(label10);
+            groupBox4.Controls.Add(opcda_bt);
+            groupBox4.Controls.Add(opcda_run);
             groupBox4.Controls.Add(label8);
-            groupBox4.Location = new Point(27, 96);
+            groupBox4.Location = new Point(27, 27);
             groupBox4.Name = "groupBox4";
             groupBox4.Size = new Size(441, 113);
             groupBox4.TabIndex = 0;
             groupBox4.TabStop = false;
             groupBox4.Text = "OPC采集服务";
             // 
-            // button1
+            // opcda_bt
             // 
-            button1.Location = new Point(308, 40);
-            button1.Name = "button1";
-            button1.Size = new Size(90, 38);
-            button1.TabIndex = 2;
-            button1.Text = "button1";
-            button1.UseVisualStyleBackColor = true;
+            opcda_bt.Location = new Point(308, 39);
+            opcda_bt.Name = "opcda_bt";
+            opcda_bt.Size = new Size(90, 38);
+            opcda_bt.TabIndex = 2;
+            opcda_bt.Text = "button1";
+            opcda_bt.UseVisualStyleBackColor = true;
+            opcda_bt.Click += opcda_bt_Click;
             // 
-            // label10
+            // opcda_run
             // 
-            label10.AutoSize = true;
-            label10.Location = new Point(155, 49);
-            label10.Name = "label10";
-            label10.Size = new Size(64, 21);
-            label10.TabIndex = 1;
-            label10.Text = "label10";
+            opcda_run.AutoSize = true;
+            opcda_run.ForeColor = SystemColors.ButtonHighlight;
+            opcda_run.Location = new Point(155, 48);
+            opcda_run.Name = "opcda_run";
+            opcda_run.Size = new Size(64, 21);
+            opcda_run.TabIndex = 1;
+            opcda_run.Text = "label10";
             // 
             // label8
             // 
             label8.AutoSize = true;
-            label8.Location = new Point(31, 49);
+            label8.Location = new Point(31, 48);
             label8.Name = "label8";
             label8.Size = new Size(90, 21);
             label8.TabIndex = 0;
@@ -294,7 +253,7 @@
             dataView.Columns.AddRange(new DataGridViewColumn[] { Column1, Column2, Column3, Column4, Column5, Column6 });
             dataView.Location = new Point(-4, 0);
             dataView.Name = "dataView";
-            dataView.Size = new Size(1003, 658);
+            dataView.Size = new Size(1003, 650);
             dataView.TabIndex = 0;
             // 
             // Column1
@@ -590,12 +549,79 @@
             textBox1.TabIndex = 0;
             textBox1.Text = "localhost";
             // 
+            // label1
+            // 
+            label1.AutoSize = true;
+            label1.Font = new Font("Microsoft YaHei UI", 14.25F, FontStyle.Bold, GraphicsUnit.Point, 134);
+            label1.Location = new Point(461, 16);
+            label1.Name = "label1";
+            label1.Size = new Size(145, 26);
+            label1.TabIndex = 1;
+            label1.Text = "后台服务状态：";
+            // 
+            // Inst_install
+            // 
+            Inst_install.Appearance = Appearance.Button;
+            Inst_install.AutoSize = true;
+            Inst_install.BackColor = Color.FloralWhite;
+            Inst_install.Checked = true;
+            Inst_install.CheckState = CheckState.Checked;
+            Inst_install.FlatStyle = FlatStyle.Flat;
+            Inst_install.ForeColor = SystemColors.ButtonHighlight;
+            Inst_install.Location = new Point(369, 13);
+            Inst_install.Name = "Inst_install";
+            Inst_install.Size = new Size(52, 31);
+            Inst_install.TabIndex = 5;
+            Inst_install.Text = "未知";
+            Inst_install.UseVisualStyleBackColor = false;
+            // 
+            // label14
+            // 
+            label14.AutoSize = true;
+            label14.Font = new Font("Microsoft YaHei UI", 14.25F, FontStyle.Bold, GraphicsUnit.Point, 134);
+            label14.Location = new Point(221, 16);
+            label14.Name = "label14";
+            label14.Size = new Size(145, 26);
+            label14.TabIndex = 4;
+            label14.Text = "后台服务安装：";
+            // 
+            // Inst_run
+            // 
+            Inst_run.Appearance = Appearance.Button;
+            Inst_run.AutoSize = true;
+            Inst_run.BackColor = Color.FloralWhite;
+            Inst_run.Checked = true;
+            Inst_run.CheckState = CheckState.Checked;
+            Inst_run.FlatStyle = FlatStyle.Flat;
+            Inst_run.ForeColor = SystemColors.ButtonHighlight;
+            Inst_run.Location = new Point(612, 13);
+            Inst_run.Name = "Inst_run";
+            Inst_run.Size = new Size(52, 31);
+            Inst_run.TabIndex = 6;
+            Inst_run.Text = "未知";
+            Inst_run.UseVisualStyleBackColor = false;
+            // 
+            // restart
+            // 
+            restart.Location = new Point(696, 12);
+            restart.Name = "restart";
+            restart.Size = new Size(97, 36);
+            restart.TabIndex = 7;
+            restart.Text = "重启";
+            restart.UseVisualStyleBackColor = true;
+            restart.Click += restart_Click;
+            // 
             // Form1
             // 
             AutoScaleDimensions = new SizeF(10F, 21F);
             AutoScaleMode = AutoScaleMode.Font;
-            ClientSize = new Size(1009, 684);
+            ClientSize = new Size(1009, 729);
+            Controls.Add(restart);
+            Controls.Add(Inst_run);
+            Controls.Add(Inst_install);
+            Controls.Add(label14);
             Controls.Add(tabControl1);
+            Controls.Add(label1);
             Font = new Font("Microsoft YaHei UI", 12F, FontStyle.Regular, GraphicsUnit.Point, 134);
             FormBorderStyle = FormBorderStyle.FixedSingle;
             Margin = new Padding(4);
@@ -604,9 +630,7 @@
             Text = "GUI";
             tabControl1.ResumeLayout(false);
             tabPage1.ResumeLayout(false);
-            tabPage1.PerformLayout();
             groupBox1.ResumeLayout(false);
-            groupBox1.PerformLayout();
             groupBox6.ResumeLayout(false);
             groupBox5.ResumeLayout(false);
             groupBox5.PerformLayout();
@@ -622,6 +646,7 @@
             groupBox2.ResumeLayout(false);
             groupBox2.PerformLayout();
             ResumeLayout(false);
+            PerformLayout();
         }
 
         #endregion
@@ -652,16 +677,15 @@
         private DataGridViewTextBoxColumn Column6;
         private GroupBox groupBox4;
         private GroupBox groupBox5;
-        private Label label7;
         private Label label1;
         private Label label9;
         private Label label8;
-        private Label label11;
-        private Button button1;
-        private Label label10;
-        private Button button2;
+        private Label tdengine_run;
+        private Button opcda_bt;
+        private Label opcda_run;
+        private Button tdengine_bt;
         private GroupBox groupBox6;
-        private RichTextBox richTextBox1;
+        private RichTextBox logsText;
         private TextBox textBox7;
         private Label label13;
         private TextBox textBox6;
@@ -677,7 +701,9 @@
         private DataGridViewTextBoxColumn Column8;
         private DataGridViewTextBoxColumn Column9;
         private DataGridViewTextBoxColumn Column10;
+        private CheckBox Inst_install;
         private Label label14;
-        private CheckBox checkBox1;
+        private CheckBox Inst_run;
+        private Button restart;
     }
 }

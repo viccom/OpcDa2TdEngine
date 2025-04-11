@@ -40,7 +40,8 @@ namespace OpcDaClient
                 File.Delete("OpcDaData.db");
             }
 
-            _liteDb = new LiteDatabase("Filename=OpcDaData.db;Connection=shared");
+            //_liteDb = new LiteDatabase("Filename=OpcDaData.db;Connection=shared");
+            _liteDb = new LiteDatabase(":memory:"); 
             _dataCollection = _liteDb.GetCollection<BsonDocument>("OpcData");
         }
 
