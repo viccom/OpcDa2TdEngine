@@ -20,15 +20,15 @@ namespace OpcDaClient
         // TDengine数据库操作线程
         private Thread _tdThread;
         // OPCDA_Sub实例，用于数据订阅
-        private readonly OPCDA_Sub _opcDaSub;
+        private readonly OPC_LiteDB _opcDaSub;
         // 配置信息
-        private OPCDA_Sub.Config config;
+        private OPC_LiteDB.Config config;
 
         // 定义最大队列大小常量
         private const int MaxQueueSize = 1000;
 
         // 构造函数，接收一个OPCDA_Sub实例
-        public TdEngine_Pub(OPCDA_Sub opcDaSub)
+        public TdEngine_Pub(OPC_LiteDB opcDaSub)
         {
             _opcDaSub = opcDaSub;
         }
@@ -69,7 +69,7 @@ namespace OpcDaClient
                     Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] 正在读取TDengine配置文件...");
                     try
                     {
-                        config = Toml.ReadFile<OPCDA_Sub.Config>("config.toml");
+                        config = Toml.ReadFile<OPC_LiteDB.Config>("config.toml");
 
                         if (config?.TdEngine == null)
                         {

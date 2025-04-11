@@ -2,7 +2,7 @@ using System;
 using System.Threading;
 using Nancy.Hosting.Self;
 using OpcDaClient;
-using OpcDaSubscription; // 确保包含自定义 Bootstrapper
+using OpcDaSubscription;
 
 namespace OpcDaSubscription
 {
@@ -14,11 +14,11 @@ namespace OpcDaSubscription
         // 新增：静态字段保存 tdEnginePub 实例
         public static TdEngine_Pub tdEnginePubInstance;
         // 新增：静态字段保存 OPCDA_Sub 实例
-        public static OPCDA_Sub opcDaSubInstance;
+        public static OPC_LiteDB opcDaSubInstance;
 
         static void Main(string[] args)
         {
-            var opcDaSub = new OPCDA_Sub();
+            var opcDaSub = new OPC_LiteDB();
             var tdEnginePub = new TdEngine_Pub(opcDaSub);
             // 赋值给静态字段，供其他模块调用
             opcDaSubInstance = opcDaSub;

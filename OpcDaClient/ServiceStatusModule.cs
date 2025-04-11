@@ -74,7 +74,7 @@ namespace OpcDaSubscription
                             };
                             return Response.AsJson(response);
                         }
-                        Program.opcDaSubInstance = new OPCDA_Sub();
+                        Program.opcDaSubInstance = new OPC_LiteDB();
                         Program.opcDaSubInstance.Start();
                         Program.opcDaSubStatus = true;
                         var responseStarted = new
@@ -155,6 +155,33 @@ namespace OpcDaSubscription
                     message = "invalid id"
                 };
                 return Response.AsJson(invalidResponse);
+            });
+
+            // 新增：GET /apiv1/rtdata 接口，返回 OPCDA_Sub LiteDB 中存储的数据
+            Get("/rtdata", _ =>
+            {
+                if (Program.opcDaSubInstance != null)
+                {
+                    var data = Program.opcDaSubInstance.GetAllData();
+                    // Console.WriteLine("Data：{0}", data.Values);
+                    var response = new
+                    {
+                        result = true,
+                        data = data,
+                        message = "ok"
+                    };
+                    return Response.AsJson(response);
+                }
+                else
+                {
+                    var response = new
+                    {
+                        result = false,
+                        data = new { },
+                        message = "OPCDA_Sub instance not available."
+                    };
+                    return Response.AsJson(response);
+                }
             });
         }
     }

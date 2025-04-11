@@ -7,13 +7,14 @@ using System.Linq;
 using Nett;
 using Opc;
 using Opc.Da;
+using LiteDB;
 
 namespace OpcDaClient
 {
     /// <summary>
     /// OPC DA客户端订阅类，负责与OPC服务器建立连接、订阅数据变化并处理接收到的数据
     /// </summary>
-    internal class OPCDA_Sub
+    internal class OPC_LiteDB : IDisposable
     {
         // 线程运行状态标志
         private bool _running = true;
@@ -23,6 +24,25 @@ namespace OpcDaClient
         private ConcurrentQueue<Dictionary<string, ItemValueResult>> _dataQueue = new ConcurrentQueue<Dictionary<string, ItemValueResult>>();
         // 最大队列大小，防止无限制增长导致内存溢出
         private const int MAX_QUEUE_SIZE = 10000;
+
+        // 新增：LiteDB实例及数据集合
+        private LiteDatabase _liteDb;
+        private ILiteCollection<BsonDocument> _dataCollection;
+
+        /// <summary>
+        /// 构造函数—初始化 LiteDB
+        /// </summary>
+        public OPC_LiteDB()
+        {
+            // 新增：启动时检测并删除现有数据库文件
+            if (File.Exists("OpcDaData.db"))
+            {
+                File.Delete("OpcDaData.db");
+            }
+
+            _liteDb = new LiteDatabase("Filename=OpcDaData.db;Connection=shared");
+            _dataCollection = _liteDb.GetCollection<BsonDocument>("OpcData");
+        }
 
         /// <summary>
         /// 启动OPC DA客户端线程
@@ -124,7 +144,7 @@ namespace OpcDaClient
                     try
                     {
                         IRequest quest = null;
-                        group.Read(group.Items, null, this.AsyncReadComplete, out quest);
+                        group.Read(group.Items, 1, this.AsyncReadComplete, out quest);
                         Console.WriteLine("异步读数据成功");
                     }
                     catch (Exception ex)
@@ -221,6 +241,7 @@ namespace OpcDaClient
                     if (parts.Length >= 4 && parts[3] == items[i].ItemName)
                     {
                         dataMap[parts[0]] = items[i];
+                        //Console.WriteLine("点名：{0}，value：{1}，Timestamp: {2}，quality：{3}, Now: {4}", parts[0], items[i].Value, items[i].Timestamp, items[i].Quality, DateTime.Now);
                         break;
                     }
                 }
@@ -236,6 +257,9 @@ namespace OpcDaClient
                 Console.WriteLine("Warning: Data queue is full, dropping data");
             }
 
+            // 保存数据到 LiteDB
+            SaveDataToLiteDb(dataMap);
+
             // Console.WriteLine("-------------------<");
         }
 
@@ -247,6 +271,66 @@ namespace OpcDaClient
         public bool TryGetData(out Dictionary<string, ItemValueResult> data)
         {
             return _dataQueue.TryDequeue(out data);
+        }
+
+        /// <summary>
+        /// 获取 LiteDB 中存储的数据，返回 json 结构数据
+        /// </summary>
+        public Dictionary<string, object> GetAllData()
+        {
+            var result = new Dictionary<string, object>();
+            foreach (var doc in _dataCollection.FindAll())
+            {
+                // 获取主键 _id
+                string key = doc["_id"].AsString;
+                // 构造 json 结构数据
+                var jsonData = new
+                {
+                    Value = doc["Value"].AsString,
+                    Timestamp = doc["Timestamp"].RawValue, // 保留原始值 (DateTime/string)
+                    Quality = doc["Quality"].AsString,
+                    ItemName = doc["ItemName"].AsString
+                };
+                result[key] = jsonData;
+            }
+
+            // 新增：判断结果是否为空
+            if (result.Count == 0)
+            {
+                throw new InvalidOperationException("No data available from LiteDB");
+            }
+
+            return result;
+        }
+
+        /// <summary>
+        /// 保存数据到 LiteDB
+        /// </summary>
+        /// <param name="dataMap">数据字典</param>
+        private void SaveDataToLiteDb(Dictionary<string, ItemValueResult> dataMap)
+        {
+            foreach (var kvp in dataMap)
+            {
+                var document = new BsonDocument
+                {
+                    ["_id"] = kvp.Key, // 将 dataMap 的 Key 作为 _id（主键）
+                    ["Value"] = kvp.Value.Value?.ToString(),
+                    ["Timestamp"] = kvp.Value.Timestamp,
+                    ["Quality"] = kvp.Value.QualitySpecified ? kvp.Value.Quality.ToString() : "Unknown",
+                    ["ItemName"] = kvp.Value.ItemName
+                };
+
+                // Upsert：自动覆盖或插入
+                _dataCollection.Upsert(document);
+            }
+        }
+
+        /// <summary>
+        /// 释放 LiteDB 资源
+        /// </summary>
+        public void Dispose()
+        {
+            _liteDb?.Dispose();
         }
 
         /// <summary>
