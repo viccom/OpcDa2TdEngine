@@ -5,6 +5,7 @@ using System.IO;
 using System.Threading;
 using System.Collections.Concurrent;
 using System.Linq;
+using System.Text;
 using Nett;
 using Opc;
 using Opc.Da;
@@ -12,44 +13,42 @@ using LiteDB;
 using MQTTnet;
 using MQTTnet.Client;
 using MQTTnet.Client.Options;
+using MQTTnet.Protocol;
 using Newtonsoft.Json;
 
 namespace OpcDaClient
 {
-    /// <summary>
-    /// OPC DA客户端订阅类，负责与OPC服务器建立连接、订阅数据变化并处理接收到的数据
-    /// </summary>
     internal class OPC_LiteDB : IDisposable
     {
-        // 新增MQTT客户端成员
         private IMqttClient _mqttClient;
-        private IMqttClientOptions _mqttOptions; // 修改类型为接口类型
-
-        // 线程运行状态标志
+        private IMqttClientOptions _mqttOptions;
         private bool _running = true;
-        // OPC客户端线程
         private Thread _opcThread;
-        // 数据队列，用于存储从OPC服务器接收到的数据
         private ConcurrentQueue<Dictionary<string, ItemValueResult>> _dataQueue = new ConcurrentQueue<Dictionary<string, ItemValueResult>>();
-        // 最大队列大小，防止无限制增长导致内存溢出
         private const int MAX_QUEUE_SIZE = 10000;
-
-        // 新增：LiteDB实例及数据集合
         private LiteDatabase _liteDb;
         private ILiteCollection<BsonDocument> _dataCollection;
 
-        /// <summary>
-        /// 构造函数—初始化 LiteDB
-        /// </summary>
         public OPC_LiteDB()
         {
-            // 初始化MQTT配置时启用自动重连
             _mqttOptions = new MqttClientOptionsBuilder()
                 .WithTcpServer("127.0.0.1", 6883)
                 .Build();
             _mqttClient = new MqttFactory().CreateMqttClient();
+            
+            // _mqttClient.UseApplicationMessageReceivedHandler(e =>
+            // {
+            //     Console.WriteLine($"收到消息:\n" +
+            //                       $"主题: {e.ApplicationMessage.Topic}\n" +
+            //                       $"载荷: {Encoding.UTF8.GetString(e.ApplicationMessage.Payload)}\n" +
+            //                       $"QoS: {e.ApplicationMessage.QualityOfServiceLevel}\n" +
+            //                       $"保留标志: {e.ApplicationMessage.Retain}");
+            //
+            //     HandleMqttMessage(e.ApplicationMessage);
+            //
+            //     return Task.CompletedTask;
+            // });
 
-            // 原有LiteDB初始化代码保持不变
             if (File.Exists("OpcDaData.db"))
             {
                 File.Delete("OpcDaData.db");
@@ -58,37 +57,120 @@ namespace OpcDaClient
             _dataCollection = _liteDb.GetCollection<BsonDocument>("OpcData");
         }
 
-        /// <summary>
-        /// 启动OPC DA客户端线程
-        /// </summary>
+        // private void HandleMqttMessage(MqttApplicationMessage message)
+        // {
+        //     var payload = Encoding.UTF8.GetString(message.Payload);
+        //     var json = JsonConvert.DeserializeObject<Dictionary<string, object>>(payload);
+        //
+        //     if (json == null || !json.ContainsKey("cmd") || !json.ContainsKey("type") || !json.ContainsKey("reqid"))
+        //     {
+        //         SendMqttResponse(false, "Invalid payload format", null, (string)json["reqid"], "default");
+        //         return;
+        //     }
+        //
+        //     var topicParts = message.Topic.Split('/');
+        //     if (topicParts.Length < 3 || topicParts[0] != "client" || topicParts[2] != "command")
+        //     {
+        //         SendMqttResponse(false, "Invalid topic format", null, (string)json["reqid"], "default");
+        //         return;
+        //     }
+        //     var clientId = topicParts[1];
+        //
+        //     var cmd = (string)json["cmd"];
+        //     var type = (string)json["type"];
+        //     var reqid = (string)json["reqid"];
+        //
+        //     switch (cmd)
+        //     {
+        //         case "get":
+        //             HandleGetCommand(type, reqid, clientId);
+        //             break;
+        //         case "set":
+        //             HandleSetCommand(type, json, reqid, clientId);
+        //             break;
+        //         default:
+        //             SendMqttResponse(false, "Unsupported command", null, reqid, clientId);
+        //             break;
+        //     }
+        // }
+        //
+        // private void HandleGetCommand(string type, string reqid, string clientId)
+        // {
+        //     switch (type)
+        //     {
+        //         case "apps":
+        //             var appsStatus = new
+        //             {
+        //                 opcDaSub = _running,
+        //                 tdEnginePub = false // Assuming tdEnginePub is not implemented yet
+        //             };
+        //             SendMqttResponse(true, "success", appsStatus, reqid, clientId);
+        //             break;
+        //         case "config":
+        //             var config = Toml.ReadFile<Config>("config.toml");
+        //             SendMqttResponse(true, "success", config, reqid, clientId);
+        //             break;
+        //         default:
+        //             SendMqttResponse(false, "Unsupported type", null, reqid, clientId);
+        //             break;
+        //     }
+        // }
+        //
+        // private void HandleSetCommand(string type, Dictionary<string, object> json, string reqid, string clientId)
+        // {
+        //     // Implement set command handling here
+        //     SendMqttResponse(false, "Set command not implemented", null, reqid, clientId);
+        // }
+
+        // private void SendMqttResponse(bool result, string message, object data, string reqid, string clientId)
+        // {
+        //     var response = new
+        //     {
+        //         result,
+        //         message,
+        //         data,
+        //         reqid
+        //     };
+        //
+        //     var mqttdata = JsonConvert.SerializeObject(response);
+        //     var mqttMessage = new MqttApplicationMessageBuilder()
+        //         .WithTopic($"client/{clientId}/response")
+        //         .WithPayload(mqttdata)
+        //         .Build();
+        //
+        //     _mqttClient.PublishAsync(mqttMessage);
+        // }
+
         public void Start()
         {
-            // 修改MQTT启动逻辑为等待连接成功后再启动OPC线程
             Task.Run(async () =>
             {
-                await Task.Delay(5000); // 初始延迟等待Broker启动
+                await Task.Delay(5000);
                 while (_running)
                 {
                     try
                     {
                         await _mqttClient.ConnectAsync(_mqttOptions);
+                        // await _mqttClient.SubscribeAsync(
+                        //     new MqttTopicFilterBuilder()
+                        //         .WithTopic("client/+/command")
+                        //         .WithQualityOfServiceLevel(MqttQualityOfServiceLevel.AtMostOnce)
+                        //         .Build()
+                        // );
                         break;
                     }
                     catch
                     {
-                        await Task.Delay(5000); // 连接失败重试间隔
+                        await Task.Delay(5000);
                     }
                 }
-            }).Wait(); // 等待MQTT连接完成后再继续执行
+            }).Wait();
 
             Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] 正在启动OPCDA_Sub线程...");
             _opcThread = new Thread(StartOpcClient);
             _opcThread.Start();
         }
 
-        /// <summary>
-        /// 停止OPC DA客户端线程
-        /// </summary>
         public void Stop()
         {
             _running = false;
@@ -98,9 +180,6 @@ namespace OpcDaClient
             }
         }
 
-        /// <summary>
-        /// OPC客户端线程的主方法，负责读取配置、连接OPC服务器、订阅数据
-        /// </summary>
         private void StartOpcClient()
         {
             Console.WriteLine("正在读取配置文件config.toml...");
@@ -124,43 +203,34 @@ namespace OpcDaClient
             var items = ReadItemsFromCsv("items.csv");
             Console.WriteLine($"已加载{items.Length}个OPC项");
 
-            // 新增：重试间隔配置
-            int retryInterval = 5000; // 初始5秒
-            const int maxRetryInterval = 60000; // 最大60秒
+            int retryInterval = 5000;
+            const int maxRetryInterval = 60000;
 
             while (_running)
             {
                 try
                 {
-                    // 连接服务器
                     URL url = new URL($"opcda://{config.OpcDa.Host}/{config.OpcDa.ProgID}");
                     OpcCom.Factory fact = new OpcCom.Factory();
                     var server = new Opc.Da.Server(fact, null);
                     server.Connect(url, new ConnectData(new System.Net.NetworkCredential()));
                     Console.WriteLine("OPC服务器连接成功");
 
-                    // 创建订阅组
-                    Subscription group = null;
                     SubscriptionState groupState = new SubscriptionState();
                     groupState.Name = "Group";
                     groupState.Active = true;
                     groupState.UpdateRate = 1000;
-                    // groupState.ClientHandle = 1;
-                    // groupState.ServerHandle = 1;
                     groupState.Deadband = 0;
-                    group = (Subscription)server.CreateSubscription(groupState);
+                    var group = (Subscription)server.CreateSubscription(groupState);
                     Console.WriteLine("订阅组创建成功");
 
-                    // 添加项
                     items = group.AddItems(items);
                     Console.WriteLine("OPC项添加成功");
 
-                    // 同步读取数据
                     try
                     {
                         ItemValueResult[] syncValues = group.Read(group.Items);
                         Console.WriteLine("同步读数据成功");
-                        //以下遍历读到的全部值
                         foreach (ItemValueResult value in syncValues)
                         {
                             Console.WriteLine("同步读：ITEM：{0}，value：{1}，quality：{2}", value.ItemName, value.Value, value.Quality);
@@ -172,7 +242,6 @@ namespace OpcDaClient
                         throw;
                     }
 
-                    // 异步读取数据
                     try
                     {
                         IRequest quest = null;
@@ -182,19 +251,15 @@ namespace OpcDaClient
                     catch (Exception ex)
                     {
                         Console.WriteLine($"异步读数据失败: {ex.Message}");
-                        //throw;
                     }
 
-                    // 注册事件
                     group.DataChanged += new DataChangedEventHandler(this.OnTransactionCompleted);
 
-                    // 进入等待循环
                     while (_running)
                     {
                         Thread.Sleep(100);
                     }
 
-                    // 释放资源
                     group.DataChanged -= this.OnTransactionCompleted;
                     group.RemoveItems(group.Items);
                     server.CancelSubscription(group);
@@ -203,19 +268,13 @@ namespace OpcDaClient
                 }
                 catch (Exception ex)
                 {
-                    // 新增：异常处理与重试逻辑
                     Console.WriteLine($"连接或订阅失败，将在{retryInterval}毫秒后重试: {ex.Message}");
                     Thread.Sleep(retryInterval);
-                    retryInterval = Math.Min(retryInterval * 2, maxRetryInterval); // 指数退避
+                    retryInterval = Math.Min(retryInterval * 2, maxRetryInterval);
                 }
             }
         }
 
-        /// <summary>
-        /// 从CSV文件中读取OPC项
-        /// </summary>
-        /// <param name="filePath">CSV文件路径</param>
-        /// <returns>Item数组</returns>
         private Item[] ReadItemsFromCsv(string filePath)
         {
             var lines = File.ReadAllLines(filePath);
@@ -235,11 +294,8 @@ namespace OpcDaClient
             return items.ToArray();
         }
 
-        //ReadComplete回调
         public void AsyncReadComplete(object requestHandle, ItemValueResult[] values)
         {
-            //Console.WriteLine("发生异步读name:{0},value:{1}", values[0].ItemName, values[0].Value);
-            //以下遍历异步读到的全部值
             foreach (ItemValueResult value in values)
             {
                 Console.WriteLine("异步读：ITEM：{0}，value：{1}，quality：{2}", value.ItemName, value.Value, value.Quality);
@@ -250,22 +306,12 @@ namespace OpcDaClient
             }
         }
 
-        /// <summary>
-        /// 数据变化事件处理方法，当订阅的数据发生变化时调用
-        /// </summary>
-        /// <param name="group">订阅组</param>
-        /// <param name="hReq">请求句柄</param>
-        /// <param name="items">发生变化的项</param>
         private void OnTransactionCompleted(object group, object hReq, ItemValueResult[] items)
         {
-            // Console.WriteLine("------------------->");
-            Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] DataChanged ... items count: {items.GetLength(0)}");
-            // Console.WriteLine("事件信号句柄为{0}", hReq);
             var dataMap = new Dictionary<string, ItemValueResult>();
 
             for (int i = 0; i < items.GetLength(0); i++)
             {
-                // 获取csv中的点名作为key
                 var csvLines = File.ReadAllLines("items.csv");
                 foreach (var line in csvLines.Skip(1))
                 {
@@ -273,13 +319,11 @@ namespace OpcDaClient
                     if (parts.Length >= 4 && parts[3] == items[i].ItemName)
                     {
                         dataMap[parts[0]] = items[i];
-                        //Console.WriteLine("点名：{0}，value：{1}，Timestamp: {2}，quality：{3}, Now: {4}", parts[0], items[i].Value, items[i].Timestamp, items[i].Quality, DateTime.Now);
                         break;
                     }
                 }
             }
 
-            // 在保存到LiteDB之前发布到MQTT
             try
             {
                 var newMap = new Dictionary<string, object>();
@@ -299,51 +343,37 @@ namespace OpcDaClient
                     .WithTopic("/opcda/data")
                     .WithPayload(mqttdata)
                     .Build();
-                _mqttClient.PublishAsync(message); // 异步发布
+                _mqttClient.PublishAsync(message);
             }
             catch (Exception ex)
             {
                 Console.WriteLine($"MQTT发布失败: {ex.Message}");
             }
 
-            // 继续原有保存到LiteDB的逻辑
             SaveDataToLiteDb(dataMap);
-
-            // Console.WriteLine("-------------------<");
         }
 
-        /// <summary>
-        /// 尝试获取并移除队列中的数据
-        /// </summary>
-        /// <param name="data">移除的数据</param>
-        /// <returns>是否成功获取数据</returns>
         public bool TryGetData(out Dictionary<string, ItemValueResult> data)
         {
             return _dataQueue.TryDequeue(out data);
         }
 
-        /// <summary>
-        /// 获取 LiteDB 中存储的数据，返回 json 结构数据
-        /// </summary>
         public Dictionary<string, object> GetAllData()
         {
             var result = new Dictionary<string, object>();
             foreach (var doc in _dataCollection.FindAll())
             {
-                // 获取主键 _id
                 string key = doc["_id"].AsString;
-                // 构造 json 结构数据
                 var jsonData = new
                 {
                     Value = doc["Value"].AsString,
-                    Timestamp = doc["Timestamp"].RawValue, // 保留原始值 (DateTime/string)
+                    Timestamp = doc["Timestamp"].RawValue,
                     Quality = doc["Quality"].AsString,
                     ItemName = doc["ItemName"].AsString
                 };
                 result[key] = jsonData;
             }
 
-            // 新增：判断结果是否为空
             if (result.Count == 0)
             {
                 throw new InvalidOperationException("No data available from LiteDB");
@@ -352,31 +382,23 @@ namespace OpcDaClient
             return result;
         }
 
-        /// <summary>
-        /// 保存数据到 LiteDB
-        /// </summary>
-        /// <param name="dataMap">数据字典</param>
         private void SaveDataToLiteDb(Dictionary<string, ItemValueResult> dataMap)
         {
             foreach (var kvp in dataMap)
             {
                 var document = new BsonDocument
                 {
-                    ["_id"] = kvp.Key, // 将 dataMap 的 Key 作为 _id（主键）
+                    ["_id"] = kvp.Key,
                     ["Value"] = kvp.Value.Value?.ToString(),
                     ["Timestamp"] = kvp.Value.Timestamp,
                     ["Quality"] = kvp.Value.QualitySpecified ? kvp.Value.Quality.ToString() : "Unknown",
                     ["ItemName"] = kvp.Value.ItemName
                 };
 
-                // Upsert：自动覆盖或插入
                 _dataCollection.Upsert(document);
             }
         }
 
-        /// <summary>
-        /// 释放 LiteDB 资源
-        /// </summary>
         public void Dispose()
         {
             _liteDb?.Dispose();
@@ -384,27 +406,18 @@ namespace OpcDaClient
             _mqttClient?.Dispose();
         }
 
-        /// <summary>
-        /// 配置类，包含OPC DA和TD Engine的配置信息
-        /// </summary>
         public class Config
         {
             public OpcDaConfig OpcDa { get; set; }
             public TdEngineConfig TdEngine { get; set; }
         }
 
-        /// <summary>
-        /// OPC DA配置类
-        /// </summary>
         public class OpcDaConfig
         {
             public string Host { get; set; }
             public string ProgID { get; set; }
         }
 
-        /// <summary>
-        /// TD Engine配置类
-        /// </summary>
         public class TdEngineConfig
         {
             public string Host { get; set; }

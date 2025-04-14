@@ -130,6 +130,7 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="CustomBootstrapper.cs" />
+    <Compile Include="Mqtt_Sub.cs" />
     <Compile Include="OPC_LiteDB.cs" />
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />

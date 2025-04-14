@@ -18,11 +18,13 @@ namespace OpcDaSubscription
         public static TdEngine_Pub tdEnginePubInstance;
         // 新增：静态字段保存 OPCDA_Sub 实例
         public static OPC_LiteDB opcDaSubInstance;
-        
+        // 新增：静态字段保存 tdEnginePub 实例
+        public static Mqtt_Sub MqttSubInstance;
         static async Task Main(string[] args)
         {
             var opcDaSub = new OPC_LiteDB();
             var tdEnginePub = new TdEngine_Pub(opcDaSub);
+            var mattSub = new Mqtt_Sub();
             // 赋值给静态字段，供其他模块调用
             opcDaSubInstance = opcDaSub;
             tdEnginePubInstance = tdEnginePub;
@@ -55,6 +57,8 @@ namespace OpcDaSubscription
             {
                 opcDaSub.Stop();
                 tdEnginePub.Stop();
+                mattSub.Stop();
+                mqttServer.StopAsync().Wait();
                 
                 e.Cancel = true;
                 exitEvent.Set();
@@ -65,6 +69,7 @@ namespace OpcDaSubscription
             opcDaSubStatus = true;
             tdEnginePub.Start();
             tdEnginePubStatus = true;
+            mattSub.Start();
 
             // 启动NancyFX Web服务，传入自定义Bootstrapper
             var hostConfig = new HostConfiguration { UrlReservations = { CreateAutomatically = true } };
@@ -82,6 +87,7 @@ namespace OpcDaSubscription
             opcDaSubStatus = false;
             tdEnginePub.Stop();
             tdEnginePubStatus = false;
+            mattSub.Stop();
         }
     }
 }
