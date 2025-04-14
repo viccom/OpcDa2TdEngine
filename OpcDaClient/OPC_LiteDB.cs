@@ -1,4 +1,5 @@
 using System;
+using System.Threading.Tasks;
 using System.Collections.Generic;
 using System.IO;
 using System.Threading;
@@ -8,6 +9,10 @@ using Nett;
 using Opc;
 using Opc.Da;
 using LiteDB;
+using MQTTnet;
+using MQTTnet.Client;
+using MQTTnet.Client.Options;
+using Newtonsoft.Json;
 
 namespace OpcDaClient
 {
@@ -16,6 +21,10 @@ namespace OpcDaClient
     /// </summary>
     internal class OPC_LiteDB : IDisposable
     {
+        // 新增MQTT客户端成员
+        private IMqttClient _mqttClient;
+        private IMqttClientOptions _mqttOptions; // 修改类型为接口类型
+
         // 线程运行状态标志
         private bool _running = true;
         // OPC客户端线程
@@ -34,13 +43,17 @@ namespace OpcDaClient
         /// </summary>
         public OPC_LiteDB()
         {
-            // 新增：启动时检测并删除现有数据库文件
+            // 初始化MQTT配置时启用自动重连
+            _mqttOptions = new MqttClientOptionsBuilder()
+                .WithTcpServer("127.0.0.1", 6883)
+                .Build();
+            _mqttClient = new MqttFactory().CreateMqttClient();
+
+            // 原有LiteDB初始化代码保持不变
             if (File.Exists("OpcDaData.db"))
             {
                 File.Delete("OpcDaData.db");
             }
-
-            //_liteDb = new LiteDatabase("Filename=OpcDaData.db;Connection=shared");
             _liteDb = new LiteDatabase(":memory:"); 
             _dataCollection = _liteDb.GetCollection<BsonDocument>("OpcData");
         }
@@ -50,6 +63,24 @@ namespace OpcDaClient
         /// </summary>
         public void Start()
         {
+            // 修改MQTT启动逻辑为等待连接成功后再启动OPC线程
+            Task.Run(async () =>
+            {
+                await Task.Delay(5000); // 初始延迟等待Broker启动
+                while (_running)
+                {
+                    try
+                    {
+                        await _mqttClient.ConnectAsync(_mqttOptions);
+                        break;
+                    }
+                    catch
+                    {
+                        await Task.Delay(5000); // 连接失败重试间隔
+                    }
+                }
+            }).Wait(); // 等待MQTT连接完成后再继续执行
+
             Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] 正在启动OPCDA_Sub线程...");
             _opcThread = new Thread(StartOpcClient);
             _opcThread.Start();
@@ -248,17 +279,34 @@ namespace OpcDaClient
                 }
             }
 
-            // 添加到队列
-            if (_dataQueue.Count < MAX_QUEUE_SIZE)
+            // 在保存到LiteDB之前发布到MQTT
+            try
             {
-                _dataQueue.Enqueue(dataMap);
+                var newMap = new Dictionary<string, object>();
+                foreach (var kvp in dataMap)
+                {
+                    var newData = new Dictionary<string, object>
+                    {
+                        ["Value"] = kvp.Value.Value,
+                        ["Timestamp"] = kvp.Value.Timestamp,
+                        ["Quality"] = kvp.Value.QualitySpecified ? kvp.Value.Quality.ToString() : "Unknown",
+                        ["ItemName"] = kvp.Value.ItemName
+                    };
+                    newMap[kvp.Key] = newData;
+                }
+                string mqttdata = JsonConvert.SerializeObject(newMap);
+                var message = new MqttApplicationMessageBuilder()
+                    .WithTopic("/opcda/data")
+                    .WithPayload(mqttdata)
+                    .Build();
+                _mqttClient.PublishAsync(message); // 异步发布
             }
-            else
+            catch (Exception ex)
             {
-                Console.WriteLine("Warning: Data queue is full, dropping data");
+                Console.WriteLine($"MQTT发布失败: {ex.Message}");
             }
 
-            // 保存数据到 LiteDB
+            // 继续原有保存到LiteDB的逻辑
             SaveDataToLiteDb(dataMap);
 
             // Console.WriteLine("-------------------<");
@@ -332,6 +380,8 @@ namespace OpcDaClient
         public void Dispose()
         {
             _liteDb?.Dispose();
+            _mqttClient?.DisconnectAsync().Wait();
+            _mqttClient?.Dispose();
         }
 
         /// <summary>

@@ -1,8 +1,11 @@
 using System;
 using System.Threading;
+using System.Threading.Tasks;
 using Nancy.Hosting.Self;
 using OpcDaClient;
 using OpcDaSubscription;
+using MQTTnet;
+using MQTTnet.Server;
 
 namespace OpcDaSubscription
 {
@@ -15,8 +18,8 @@ namespace OpcDaSubscription
         public static TdEngine_Pub tdEnginePubInstance;
         // 新增：静态字段保存 OPCDA_Sub 实例
         public static OPC_LiteDB opcDaSubInstance;
-
-        static void Main(string[] args)
+        
+        static async Task Main(string[] args)
         {
             var opcDaSub = new OPC_LiteDB();
             var tdEnginePub = new TdEngine_Pub(opcDaSub);
@@ -25,10 +28,34 @@ namespace OpcDaSubscription
             tdEnginePubInstance = tdEnginePub;
             var exitEvent = new ManualResetEvent(false);
 
-            // 设置Ctrl+C处理
-            Console.CancelKeyPress += (sender, e) => {
+            var options = new MqttServerOptionsBuilder()
+                .WithDefaultEndpointPort(6883) // 监听端口
+                .WithConnectionBacklog(100)    // 最大连接数.
+                .WithConnectionValidator(context => // 直接使用 WithConnectionValidator（异步委托）
+                {
+                    Console.WriteLine($"Mqtt客户端已连接: {context.ClientId}");
+                })
+                .Build();
+            var mqttServer = new MqttFactory().CreateMqttServer();
+            
+            try
+            {
+                Console.WriteLine("正在启动 MQTT Broker...");
+                await mqttServer.StartAsync(options);
+                Console.WriteLine("MQTT Broker 已成功启动，监听端口: 6883");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"启动 MQTT Broker 失败: {ex.Message}");
+                return; // 如果启动失败，退出程序
+            }
+            
+            // 修改退出事件处理程序
+            Console.CancelKeyPress += (sender, e) => 
+            {
                 opcDaSub.Stop();
                 tdEnginePub.Stop();
+                
                 e.Cancel = true;
                 exitEvent.Set();
             };
