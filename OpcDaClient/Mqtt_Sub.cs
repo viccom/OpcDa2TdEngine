@@ -50,7 +50,7 @@ namespace OpcDaClient
                     {
                         await _mqttClient.ConnectAsync(_mqttOptions);
                         await _mqttClient.SubscribeAsync(new MqttTopicFilterBuilder().WithTopic("client/+/command").Build());
-                        Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] mqtt 订阅已启动...");
+                        Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] mqtt_Sub线程 已启动...");
                         break;
                     }
                     catch { await Task.Delay(3000); }
@@ -111,6 +111,10 @@ namespace OpcDaClient
                 case "config":
                     var config = Toml.ReadFile<Config>("config.toml");
                     SendMqttResponse(true, "success", config, reqid, clientId);
+                    break;
+                case "rtdata":
+                    var rtdata = Program.opcDaSubInstance.GetAllData();
+                    SendMqttResponse(true, "success", rtdata, reqid, clientId);
                     break;
                 default:
                     SendMqttResponse(false, "Unsupported type", null, reqid, clientId);
