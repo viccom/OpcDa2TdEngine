@@ -1,4 +1,5 @@
 using System;
+using System.IO;
 using System.Threading.Tasks;
 using System.Collections.Generic;
 using Nett;
@@ -112,6 +113,10 @@ namespace OpcDaClient
                     var config = Toml.ReadFile<Config>("config.toml");
                     SendMqttResponse(true, "success", config, reqid, clientId);
                     break;
+                case "tags":
+                    var tags = ReadTagsFromCsv("items.csv");
+                    SendMqttResponse(true, "success", tags, reqid, clientId);
+                    break;
                 case "rtdata":
                     var rtdata = Program.opcDaSubInstance.GetAllData();
                     SendMqttResponse(true, "success", rtdata, reqid, clientId);
@@ -156,6 +161,66 @@ namespace OpcDaClient
             public TdEngineConfig TdEngine { get; set; }
         }
 
+        private List<string[]> ReadTagsFromCsv(string filePath)
+        {
+            // 检查文件是否存在
+            if (!File.Exists(filePath))
+            {
+                throw new FileNotFoundException($"CSV文件未找到: {filePath}");
+            }
+            var lines = File.ReadAllLines(filePath);
+            var items = new List<string[]>();
+    
+            // 跳过标题行(如果不需要跳过，改为从0开始)
+            for (int i = 1; i < lines.Length; i++)
+            {
+                try
+                {
+                    // 使用更健壮的CSV解析方法
+                    var parts = ParseCsvLine(lines[i]);
+            
+                    if (parts.Length >= 4)  // 假设需要至少4列
+                    {
+                        items.Add(parts);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    // 记录错误行但继续处理
+                    Console.WriteLine($"解析行 {i+1} 时出错: {ex.Message}");
+                }
+            }
+            return items;
+        }
+        private string[] ParseCsvLine(string line)
+        {
+            // 简单处理：拆分逗号，但保留引号内的内容
+            var result = new List<string>();
+            var inQuotes = false;
+            var currentField = new StringBuilder();
+    
+            foreach (char c in line)
+            {
+                if (c == '"')
+                {
+                    inQuotes = !inQuotes;
+                }
+                else if (c == ',' && !inQuotes)
+                {
+                    result.Add(currentField.ToString());
+                    currentField.Clear();
+                }
+                else
+                {
+                    currentField.Append(c);
+                }
+            }
+    
+            // 添加最后一个字段
+            result.Add(currentField.ToString());
+    
+            return result.ToArray();
+        }
         public class OpcDaConfig
         {
             public string Host { get; set; }
