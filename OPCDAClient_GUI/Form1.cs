@@ -1,5 +1,6 @@
 using System;
 using System.Data;
+using System.Diagnostics;
 using System.IO;
 using System.ServiceProcess;
 using Newtonsoft.Json;
@@ -376,7 +377,28 @@ namespace OPCDAClient_GUI
             //await Task.WhenAll(RestartService("opcDaSub"), RestartService("tdEnginePub"));
         }
 
-
+        private void install_bt_Click(object sender, EventArgs e)
+        {
+            if (Inst_install.Text != "已安装")
+            {
+                MessageBox.Show("本地服务未安装", "错误", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                return;
+            }
+            if (install_bt.Text == "启动")
+            {
+                if (MessageBox.Show("确定要启动服务吗？", "确认", MessageBoxButtons.YesNo, MessageBoxIcon.Question) == DialogResult.Yes)
+                {
+                    StartService("OpcDa2TdEngine");
+                }
+            }
+            else
+            {
+                if (MessageBox.Show("确定要停止服务吗？", "确认", MessageBoxButtons.YesNo, MessageBoxIcon.Question) == DialogResult.Yes)
+                {
+                    StopService("OpcDa2TdEngine");
+                }
+            }
+        }
         private async Task RestartService(string id)
         {
             try
@@ -401,28 +423,7 @@ namespace OPCDAClient_GUI
             }
         }
 
-        private void install_bt_Click(object sender, EventArgs e)
-        {
-            if (Inst_install.Text != "已安装")
-            {
-                MessageBox.Show("本地服务未安装", "错误", MessageBoxButtons.OK, MessageBoxIcon.Error);
-                return;
-            }
-            if (install_bt.Text == "启动")
-            {
-                if (MessageBox.Show("确定要启动服务吗？", "确认", MessageBoxButtons.YesNo, MessageBoxIcon.Question) == DialogResult.Yes)
-                {
-                    StartService("OpcDa2TdEngine");
-                }
-            }
-            else
-            {
-                if (MessageBox.Show("确定要停止服务吗？", "确认", MessageBoxButtons.YesNo, MessageBoxIcon.Question) == DialogResult.Yes)
-                {
-                    StopService("OpcDa2TdEngine");
-                }
-            }
-        }
+       
         private void StartService(string serviceName)
         {
             try
@@ -592,7 +593,122 @@ namespace OPCDAClient_GUI
             }
         }
 
-        
+        //
+        private async void Inst_install_Click(object sender, EventArgs e)
+        {
+            if (Inst_install.Text == "已安装")
+            {
+                if (MessageBox.Show("确定要卸载服务吗？", "确认", MessageBoxButtons.YesNo, MessageBoxIcon.Question) == DialogResult.Yes)
+                {
+                    StopService("OpcDa2TdEngine");
+                    await UninstallService("OpcDa2TdEngine");
+                }
+            }
+            else
+            {
+                if (MessageBox.Show("确定要安装服务吗？", "确认", MessageBoxButtons.YesNo, MessageBoxIcon.Question) == DialogResult.Yes)
+                {
+                    await InstallService("OpcDa2TdEngine");
+                }
+            }
+        }
+
+        private async Task InstallService(string opcda2tdengine)
+        {
+            try
+            {
+                // 获取当前程序的绝对路径
+                string baseDirectory = AppDomain.CurrentDomain.BaseDirectory;
+                string binDirectory = Path.Combine(baseDirectory, "bin");
+                string shawlPath = Path.Combine(binDirectory, "shawl.exe");
+                string opcdaclientPath = Path.Combine(binDirectory, "opcdaclient.exe");
+
+                // 检查 bin 目录以及 shawl.exe 和 opcdaclient.exe 是否存在
+                if (!Directory.Exists(binDirectory) || !File.Exists(shawlPath) || !File.Exists(opcdaclientPath))
+                {
+                    MessageBox.Show("安装失败：缺少必要的文件或目录。请确保 bin 目录、shawl.exe 和 opcdaclient.exe 存在。", "错误", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    return;
+                }
+
+                // 构建安装命令，确保路径用双引号包裹
+                string installCommand = $"\"{shawlPath}\" add --name \"{opcda2tdengine}\" -- \"{opcdaclientPath}\"";
+                AppendToLogs($"服务 {opcda2tdengine} 安装命令。输出:\n {installCommand}");
+
+                // 执行安装命令
+                using (Process process = new Process())
+                {
+                    process.StartInfo.FileName = "cmd.exe";
+                    process.StartInfo.Arguments = $"/c \"{installCommand}\""; // 确保整个命令用双引号包裹
+                    process.StartInfo.CreateNoWindow = true;
+                    process.StartInfo.UseShellExecute = false;
+                    process.StartInfo.RedirectStandardOutput = true;
+                    process.StartInfo.RedirectStandardError = true;
+
+                    process.Start();
+                    string output = await process.StandardOutput.ReadToEndAsync();
+                    string error = await process.StandardError.ReadToEndAsync();
+                    await process.WaitForExitAsync();
+
+                    if (process.ExitCode == 0)
+                    {
+                        AppendToLogs($"服务 {opcda2tdengine} 安装成功。输出: {output}");
+                        MessageBox.Show($"服务 {opcda2tdengine} 安装成功。", "成功", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    }
+                    else
+                    {
+                        AppendToLogs($"服务 {opcda2tdengine} 安装失败。错误: {error}");
+                        MessageBox.Show($"服务 {opcda2tdengine} 安装失败。错误: {error}", "错误", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                AppendToLogs($"服务安装过程中发生异常: {ex.Message}");
+                MessageBox.Show($"服务安装过程中发生异常: {ex.Message}", "错误", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
+
+        private async Task UninstallService(string opcda2tdengine)
+        {
+            try
+            {
+                // 构建卸载命令
+                string uninstallCommand = $"sc delete {opcda2tdengine}";
+
+                // 执行卸载命令
+                using (Process process = new Process())
+                {
+                    process.StartInfo.FileName = "cmd.exe";
+                    process.StartInfo.Arguments = $"/c {uninstallCommand}";
+                    process.StartInfo.CreateNoWindow = true;
+                    process.StartInfo.UseShellExecute = false;
+                    process.StartInfo.RedirectStandardOutput = true;
+                    process.StartInfo.RedirectStandardError = true;
+
+                    process.Start();
+                    string output = await process.StandardOutput.ReadToEndAsync();
+                    string error = await process.StandardError.ReadToEndAsync();
+                    await process.WaitForExitAsync();
+
+                    if (process.ExitCode == 0)
+                    {
+                        AppendToLogs($"服务 {opcda2tdengine} 卸载成功。输出: {output}");
+                        MessageBox.Show($"服务 {opcda2tdengine} 卸载成功。", "成功", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    }
+                    else
+                    {
+                        AppendToLogs($"服务 {opcda2tdengine} 卸载失败。错误: {error}");
+                        MessageBox.Show($"服务 {opcda2tdengine} 卸载失败。错误: {error}", "错误", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                AppendToLogs($"服务卸载过程中发生异常: {ex.Message}");
+                MessageBox.Show($"服务卸载过程中发生异常: {ex.Message}", "错误", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
+
         public static string GenerateShortGuid(int length = 8)
         {
             return Guid.NewGuid().ToString("N").Substring(0, length); // 取前8位

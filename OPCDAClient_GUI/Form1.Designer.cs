@@ -644,6 +644,7 @@
             Inst_install.TabIndex = 5;
             Inst_install.Text = "未知";
             Inst_install.UseVisualStyleBackColor = false;
+            Inst_install.Click += Inst_install_Click;
             // 
             // label14
             // 
