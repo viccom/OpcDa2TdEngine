@@ -206,9 +206,9 @@ namespace OpcDaClient
                         switch (id)
                         {
                             case "opcDaSub":
-                                if (!Program.tdEnginePubStatus)
+                                if (!Program.opcDaSubStatus)
                                 {
-                                    var message = "tdEnginePub 已经停止";
+                                    var message = "opcDaSub 已经停止";
                                     SendMqttResponse(false, message, null, reqid, clientId);
                                     return;
                                 }
@@ -217,9 +217,9 @@ namespace OpcDaClient
                                 SendMqttResponse(true, id + " stop success", null, reqid, clientId);
                                 break;
                             case "tdEnginePub":
-                                if (!Program.opcDaSubStatus)
+                                if (!Program.tdEnginePubStatus)
                                 {
-                                    var message = "opcDaSub 已经停止";
+                                    var message = "tdEnginePub 已经停止";
                                     SendMqttResponse(false, message, null, reqid, clientId);
                                     return;
                                 }
