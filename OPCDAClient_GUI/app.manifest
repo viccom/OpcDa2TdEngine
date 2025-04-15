@@ -1,12 +1,36 @@
 <?xml version="1.0" encoding="utf-8"?>
 <assembly manifestVersion="1.0" xmlns="urn:schemas-microsoft-com:asm.v1">
-    <trustInfo xmlns="urn:schemas-microsoft-com:asm.v2">
-        <security>
-            <requestedPrivileges>
-                <requestedExecutionLevel 
-                    level="requireAdministrator" 
-                    uiAccess="false" />
-            </requestedPrivileges>
-        </security>
-    </trustInfo>
+  <assemblyIdentity version="1.0.0.0" name="MyApplication.app"/>
+
+  <!-- DPI 感知配置（关键部分） -->
+  <application xmlns="urn:schemas-microsoft-com:asm.v3">
+    <windowsSettings>
+      <!-- 传统 DPI 感知声明（兼容 Win7-Win8.1） -->
+      <dpiAware xmlns="http://schemas.microsoft.com/SMI/2005/WindowsSettings">true</dpiAware>
+
+      <!-- 现代 DPI 感知声明（Win10 1703+） -->
+      <dpiAwareness xmlns="http://schemas.microsoft.com/SMI/2016/WindowsSettings">PerMonitorV2</dpiAwareness>
+    </windowsSettings>
+  </application>
+
+  <trustInfo xmlns="urn:schemas-microsoft-com:asm.v2">
+    <security>
+      <requestedPrivileges>
+        <requestedExecutionLevel
+          level="requireAdministrator"
+          uiAccess="false" />
+      </requestedPrivileges>
+    </security>
+  </trustInfo>
+
+  <!-- 兼容性配置（可选但推荐） -->
+  <compatibility xmlns="urn:schemas-microsoft-com:compatibility.v1">
+    <application>
+      <!-- 支持 Windows 10 和 11 -->
+      <supportedOS Id="{8e0f7a12-bfb3-4fe8-b9a5-48fd50a15a9a}"/>
+      <!-- Windows 10 -->
+      <supportedOS Id="{1f676c76-80e1-4239-95bb-83d0f6d0da78}"/>
+      <!-- Windows 11 -->
+    </application>
+  </compatibility>
 </assembly>

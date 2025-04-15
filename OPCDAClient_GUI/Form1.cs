@@ -10,6 +10,8 @@ using System.Timers;
 using MQTTnet;
 using MQTTnet.Client;
 using MQTTnet.Client.Options;
+using Newtonsoft.Json.Linq;
+using Zuby.ADGV;
 
 namespace OPCDAClient_GUI
 {
@@ -25,13 +27,76 @@ namespace OPCDAClient_GUI
         private IMqttClient _mqttClient;
         private IMqttClientOptions _mqttOptions;
         private readonly string _mqClientId = "GUI_" + GenerateShortGuid();
-        
+        private System.Timers.Timer _mqttKeepAliveTimer;
+
+        private readonly Size _designSize = new Size(1600, 900); // 设计时的原始尺寸
+        private float _dpiScale = 1f;
+
         public Form1()
         {
+            // 必须在 InitializeComponent 前设置
+            this.AutoScaleMode = AutoScaleMode.Dpi; // 自动缩放模式
+            this.AutoSize = false; // 禁用自动调整大小
+            this.Size = _designSize; // 初始化为设计尺寸
+
             InitializeComponent();
+
+            // 设置字体避免模糊
+            this.Font = new Font("Microsoft YaHei", 9F, FontStyle.Regular, GraphicsUnit.Point);
+
+            // 禁用自动缩放（使用手动DPI缩放）
+            this.AutoSize = false;
+            this.AutoSizeMode = AutoSizeMode.GrowOnly;
+
             InitializeInstallChecker();
             // 新增：绑定 mqtt_bt 按钮点击事件
             mqtt_bt.Click += Mqtt_bt_Click;
+        }
+
+        protected override void OnLoad(EventArgs e)
+        {
+            base.OnLoad(e);
+            ScaleWindow(); // 首次加载时缩放
+        }
+        protected override void OnDpiChanged(DpiChangedEventArgs e)
+        {
+            base.OnDpiChanged(e);
+            _dpiScale = e.DeviceDpiNew / 96f;
+            ScaleWindow(); // DPI变化时重新缩放
+        }
+        private void ScaleWindow()
+        {
+            // 缩放窗口尺寸
+            this.Size = new Size(
+                (int)(_designSize.Width * _dpiScale),
+                (int)(_designSize.Height * _dpiScale)
+            );
+            // 缩放所有子控件
+            foreach (Control control in this.Controls)
+            {
+                ScaleControl(control, _dpiScale);
+            }
+        }
+        private void ScaleControl(Control control, float scaleFactor)
+        {
+            // 缩放位置和尺寸
+            control.Left = (int)(control.Left * scaleFactor);
+            control.Top = (int)(control.Top * scaleFactor);
+            control.Width = (int)(control.Width * scaleFactor);
+            control.Height = (int)(control.Height * scaleFactor);
+            // 缩放字体（可选，根据需求）
+            //control.Font = new Font(control.Font.FontFamily,
+            //                      control.Font.SizeInPoints * scaleFactor,
+            //                      control.Font.Style);
+            // 特殊控件处理（如DataGridView）
+            if (control is DataGridView dgv)
+            {
+                foreach (DataGridViewColumn column in dgv.Columns)
+                {
+                    column.Width = (int)(column.Width * scaleFactor);
+                }
+                dgv.RowTemplate.Height = (int)(dgv.RowTemplate.Height * scaleFactor);
+            }
         }
 
         private void InitializeInstallChecker()
@@ -218,7 +283,7 @@ namespace OPCDAClient_GUI
             UpdateButton(tdengine_bt, data.data.tdEnginePub);
         }
 
-        
+
         private void MqUpdateControls(ServiceData data)
         {
             if (InvokeRequired)
@@ -228,11 +293,11 @@ namespace OPCDAClient_GUI
             }
             opcda_bt.Visible = true;
             tdengine_bt.Visible = true;
-            
-            restart.Visible = true;
+
+            restart.Visible = false;
             Inst_run.Text = "已启动";
             Inst_run.BackColor = Color.SeaGreen;
-        
+
             // 更新OPC DA服务状态
             UpdateLabel(opcda_run, data.opcDaSub);
             UpdateButton(opcda_bt, data.opcDaSub);
@@ -264,6 +329,7 @@ namespace OPCDAClient_GUI
 
             // 将日志信息追加到TextBox中
             logsText.AppendText($"{DateTime.Now}: {logMessage}{Environment.NewLine}");
+            //logsText.ScrollToCaret(); // 滚动到文本框的最底部
         }
 
         private void Upload_bt_Click(object sender, EventArgs e)
@@ -338,24 +404,31 @@ namespace OPCDAClient_GUI
 
                 string jsonPayload = $"{{\"id\": \"{id}\"}}";
                 string url = string.Empty;
+                string mqPayload = string.Empty;
+                string reqid = GenerateShortGuid(8); // 生成唯一的请求ID
 
                 // 判断按钮的当前Text，决定调用哪个接口
                 if (btn.Text == "停止")
                 {
                     url = "http://127.0.0.1:7890/apiv1/stop";
+                    mqPayload = $"{{\"type\": \"stop\", \"cmd\": \"set\", \"data\": \"{id}\", \"reqid\": \"{reqid}\"}}";
                 }
                 else if (btn.Text == "启动")
                 {
                     url = "http://127.0.0.1:7890/apiv1/start";
+                    mqPayload = $"{{\"type\": \"start\", \"cmd\": \"set\", \"data\": \"{id}\", \"reqid\": \"{reqid}\"}}";
                 }
                 else
                 {
                     return;
                 }
 
-                var content = new StringContent(jsonPayload, System.Text.Encoding.UTF8, "application/json");
-                var response = await _httpClient.PostAsync(url, content);
-                response.EnsureSuccessStatusCode();
+                await _mqttClient.PublishAsync("client/" + _mqClientId + "/command", mqPayload, MQTTnet.Protocol.MqttQualityOfServiceLevel.AtLeastOnce, false);
+                string cmdMessage = $"发送主题：{"client/" + _mqClientId + "/command"}，指令: {mqPayload}";
+                AppendToLogs(cmdMessage);
+                //var content = new StringContent(jsonPayload, System.Text.Encoding.UTF8, "application/json");
+                //var response = await _httpClient.PostAsync(url, content);
+                //response.EnsureSuccessStatusCode();
             }
             catch (Exception ex)
             {
@@ -423,7 +496,7 @@ namespace OPCDAClient_GUI
             }
         }
 
-       
+
         private void StartService(string serviceName)
         {
             try
@@ -456,6 +529,8 @@ namespace OPCDAClient_GUI
                     sc.Stop();
                     sc.WaitForStatus(ServiceControllerStatus.Stopped, TimeSpan.FromSeconds(10));
                     AppendToLogs($"服务 {serviceName} 已停止.");
+                    install_bt.Text = "启动";
+                    install_bt.BackColor = Color.SeaGreen;
                 }
                 else
                 {
@@ -498,9 +573,6 @@ namespace OPCDAClient_GUI
                     mqtt_bt.Invoke((MethodInvoker)delegate { mqtt_bt.Text = "断开"; });
 
                     // 订阅多个主题 /status/apps
-                    // var topicFilter = new MqttTopicFilterBuilder()
-                    //     .WithTopic("/status/apps")
-                    //     .Build();
                     await _mqttClient.SubscribeAsync("/status/apps");
                     await _mqttClient.SubscribeAsync("/opcda/data");
                     await _mqttClient.SubscribeAsync("client/" + _mqClientId + "/response");
@@ -512,7 +584,7 @@ namespace OPCDAClient_GUI
                     {
                         var topic = e.ApplicationMessage.Topic;
                         var payload = System.Text.Encoding.UTF8.GetString(e.ApplicationMessage.Payload);
-                        
+
                         if (topic == "client/" + _mqClientId + "/response")
                         {
                             // 处理 /client/<clientId>/response 主题的消息
@@ -536,11 +608,19 @@ namespace OPCDAClient_GUI
                         }
                         if (topic == "/opcda/data")
                         {
-                            // 处理 /opcda/data 主题的消息
+                            AppendToLogs($"收到消息: {payload}");
+                            UpdateAdvancedDataGridViewWithMqttData(payload, rtDataGridView);
                         }
 
-                        
+
                     });
+
+                    // 新增：启动 MQTT 连接保持定时器
+                    _mqttKeepAliveTimer = new System.Timers.Timer(3000); // 每10秒检查一次
+                    _mqttKeepAliveTimer.Elapsed += MqttKeepAliveTimer_Elapsed;
+                    _mqttKeepAliveTimer.AutoReset = true;
+                    _mqttKeepAliveTimer.Enabled = true;
+                    _mqttKeepAliveTimer.Start();
                 }
                 else
                 {
@@ -553,7 +633,121 @@ namespace OPCDAClient_GUI
             }
         }
 
-        // 新增：MQTT 断开连接函数
+        public static void UpdateAdvancedDataGridViewWithMqttData(string jsonData, AdvancedDataGridView dataGridView)
+        {
+            // 解析JSON数据
+            var jsonObject = JObject.Parse(jsonData);
+
+            // 确保在UI线程操作
+            if (dataGridView.InvokeRequired)
+            {
+                dataGridView.Invoke(new MethodInvoker(() =>
+                    UpdateAdvancedDataGridViewWithMqttData(jsonData, dataGridView)));
+                return;
+            }
+            // 锁定UI更新
+            dataGridView.SuspendLayout();
+
+            try
+            {
+                // 初始化数据源（如果是第一次）
+                if (dataGridView.DataSource == null)
+                {
+                    var table = new DataTable();
+
+                    // 创建列并设置初始宽度
+                    table.Columns.Add("点名", typeof(string));    // Column1
+                    table.Columns.Add("数值", typeof(object));   // Column2
+                    table.Columns.Add("时间", typeof(DateTime)); // Column3
+                    table.Columns.Add("质量", typeof(string));   // Column4
+                    table.Columns.Add("OPC_item", typeof(string)); // Column5
+
+                    dataGridView.DataSource = table;
+
+                    // 设置固定列宽（单位：像素）
+                    dataGridView.Columns["点名"].Width = 250;    // 点名列稍宽
+                    dataGridView.Columns["数值"].Width = 300;
+                    dataGridView.Columns["时间"].Width = 360;    // 时间列需要更多空间
+                    dataGridView.Columns["质量"].Width = 150;
+                    dataGridView.Columns["OPC_item"].Width = 400;
+
+                    // 禁止用户调整列宽
+                    foreach (DataGridViewColumn column in dataGridView.Columns)
+                    {
+                        column.Resizable = DataGridViewTriState.False;
+                    }
+
+                    // 设置时间列格式
+                    dataGridView.Columns["时间"].DefaultCellStyle.Format = "yyyy-MM-dd HH:mm:ss";
+                }
+                var dataTable = (DataTable)dataGridView.DataSource;
+                foreach (var item in jsonObject)
+                {
+                    string pointName = item.Key;
+                    var values = (JObject)item.Value;
+                    // 查找是否已存在该点
+                    DataRow[] existingRows = dataTable.Select($"[点名] = '{pointName.Replace("'", "''")}'");
+                    if (existingRows.Length > 0)
+                    {
+                        // 更新现有行
+                        DataRow row = existingRows[0];
+                        row["数值"] = values["Value"].ToObject<object>();
+                        row["时间"] = values["Timestamp"].ToObject<DateTime>();
+                        row["质量"] = values["Quality"].ToString();
+                        row["OPC_item"] = values["ItemName"].ToString();
+                    }
+                    else
+                    {
+                        // 添加新行
+                        DataRow newRow = dataTable.NewRow();
+                        newRow["点名"] = pointName;
+                        newRow["数值"] = values["Value"].ToObject<object>();
+                        newRow["时间"] = values["Timestamp"].ToObject<DateTime>();
+                        newRow["质量"] = values["Quality"].ToString();
+                        newRow["OPC_item"] = values["ItemName"].ToString();
+                        dataTable.Rows.Add(newRow);
+                    }
+                }
+                // 刷新绑定（通知界面更新）
+                dataTable.AcceptChanges();
+            }
+            catch (Exception ex)
+            {
+                // 建议添加日志记录
+                Console.WriteLine($"更新表格时出错: {ex.Message}");
+            }
+            finally
+            {
+                dataGridView.ResumeLayout();
+
+                // 特别注意：不再调用AutoResizeColumns以保持固定宽度
+            }
+        }
+        // 新增：MQTT 连接保持定时器事件处理
+        private async void MqttKeepAliveTimer_Elapsed(object sender, ElapsedEventArgs e)
+        {
+            if (_mqttClient == null || !_mqttClient.IsConnected)
+            {
+                _mqttKeepAliveTimer.Stop();
+                AppendToLogs("检测到 MQTT 连接已断开");
+                mqtt_bt.Invoke((MethodInvoker)delegate { mqtt_bt.Text = "连接"; });
+                mqtt_node.Enabled = true;
+                Inst_run.Text = "";
+                Inst_run.BackColor = Color.Gray;
+                restart.Visible = false;
+                opcda_run.Text = "";
+                opcda_bt.Visible = false;
+                tdengine_run.Text = "";
+                tdengine_bt.Visible = false;
+                // 提示用户连接已断开
+                // MessageBox.Show("MQTT 连接已断开，请检查网络或重新连接", "警告", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+
+                // 尝试重新连接
+                // await ConnectMqttAsync();
+            }
+        }
+
+        // 新增：断开连接时停止定时器
         private async Task DisconnectMqttAsync()
         {
             try
@@ -571,7 +765,13 @@ namespace OPCDAClient_GUI
                     opcda_bt.Visible = false;
                     tdengine_run.Text = "";
                     tdengine_bt.Visible = false;
-                    
+
+                    // 停止定时器
+                    if (_mqttKeepAliveTimer != null)
+                    {
+                        _mqttKeepAliveTimer.Stop();
+                        _mqttKeepAliveTimer.Dispose();
+                    }
                 }
             }
             catch (Exception ex)
@@ -598,9 +798,14 @@ namespace OPCDAClient_GUI
         {
             if (Inst_install.Text == "已安装")
             {
+                if (install_bt.Text == "停止")
+                {
+                    MessageBox.Show("请先停止服务再卸载", "确认", MessageBoxButtons.YesNo, MessageBoxIcon.Question);
+                    return;
+                }
                 if (MessageBox.Show("确定要卸载服务吗？", "确认", MessageBoxButtons.YesNo, MessageBoxIcon.Question) == DialogResult.Yes)
                 {
-                    StopService("OpcDa2TdEngine");
+                    //StopService("OpcDa2TdEngine");
                     await UninstallService("OpcDa2TdEngine");
                 }
             }
@@ -631,7 +836,7 @@ namespace OPCDAClient_GUI
                 }
 
                 // 构建安装命令，确保路径用双引号包裹
-                string installCommand = $"\"{shawlPath}\" add --name \"{opcda2tdengine}\" -- \"{opcdaclientPath}\"";
+                string installCommand = $"\"{shawlPath}\" add --name \"{opcda2tdengine}\" --no-restart --cwd \"{binDirectory}\" -- \"{opcdaclientPath}\"";
                 AppendToLogs($"服务 {opcda2tdengine} 安装命令。输出:\n {installCommand}");
 
                 // 执行安装命令
@@ -714,6 +919,10 @@ namespace OPCDAClient_GUI
             return Guid.NewGuid().ToString("N").Substring(0, length); // 取前8位
         }
 
+        private void LogClear_Click(object sender, EventArgs e)
+        {
+            logsText.Text = "";
+        }
     }
 
     // 新增数据模型类
