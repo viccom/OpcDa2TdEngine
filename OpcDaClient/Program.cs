@@ -6,6 +6,7 @@ using OpcDaClient;
 using OpcDaSubscription;
 using MQTTnet;
 using MQTTnet.Server;
+using MQTTnet.Protocol;
 
 namespace OpcDaSubscription
 {
@@ -35,6 +36,16 @@ namespace OpcDaSubscription
                 .WithConnectionBacklog(100)    // 最大连接数.
                 .WithConnectionValidator(context => // 直接使用 WithConnectionValidator（异步委托）
                 {
+                    // 获取客户端提交的用户名和密码
+                    var username = context.Username;
+                    var password = context.Password;
+                    // 示例：检查用户名和密码（实际项目中应从数据库或配置中读取）
+                    if (username != "admin" || password != "123456")
+                    {
+                        context.ReasonCode = MqttConnectReasonCode.BadUserNameOrPassword;
+                        context.ReasonString = "用户名或密码错误";
+                        return;
+                    }
                     Console.WriteLine($"Mqtt客户端已连接: {context.ClientId}");
                 })
                 .Build();

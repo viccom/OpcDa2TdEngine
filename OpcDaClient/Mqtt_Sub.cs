@@ -24,6 +24,7 @@ namespace OpcDaClient
         {
             _mqttOptions = new MqttClientOptionsBuilder()
                 .WithTcpServer("127.0.0.1", 6883)
+                .WithCredentials("admin", "123456")
                 .Build();
             _mqttClient = new MqttFactory().CreateMqttClient();
             
@@ -56,9 +57,38 @@ namespace OpcDaClient
                     }
                     catch { await Task.Delay(3000); }
                 }
+
+                // 新增：启动定时任务，每隔1秒发布状态
+                Task.Run(async () =>
+                {
+                    while (_running)
+                    {
+                        PublishAppStatus();
+                        await Task.Delay(1000); // 每隔1秒执行一次
+                    }
+                });
             }).Wait();
         }
 
+        // 新增方法：发布应用程序状态到 /status/apps
+        private void PublishAppStatus()
+        {
+            var appsStatus = new
+            {
+                opcDaSub = Program.opcDaSubStatus, // 获取 OPCDA_Sub 线程状态
+                tdEnginePub = Program.tdEnginePubStatus // 获取 TdEngine_Pub 线程状态
+            };
+
+            var mqttdata = JsonConvert.SerializeObject(appsStatus);
+            var mqttMessage = new MqttApplicationMessageBuilder()
+                .WithTopic("/status/apps")
+                .WithPayload(mqttdata)
+                .WithQualityOfServiceLevel(MqttQualityOfServiceLevel.AtLeastOnce)
+                .WithRetainFlag(false)
+                .Build();
+
+            _mqttClient.PublishAsync(mqttMessage).Wait();
+        }
 
         private void HandleMqttMessage(MqttApplicationMessage message)
         {

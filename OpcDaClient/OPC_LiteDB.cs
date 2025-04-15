@@ -35,6 +35,7 @@ namespace OpcDaClient
         {
             _mqttOptions = new MqttClientOptionsBuilder()
                 .WithTcpServer("127.0.0.1", 6883)
+                .WithCredentials("admin", "123456")
                 .Build();
             _mqttClient = new MqttFactory().CreateMqttClient();
 
