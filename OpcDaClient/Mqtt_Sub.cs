@@ -101,14 +101,6 @@ namespace OpcDaClient
         {
             switch (type)
             {
-                case "apps":
-                    var appsStatus = new
-                    {
-                        opcDaSub = Program.opcDaSubStatus, // 获取 OPCDA_Sub 线程状态
-                        tdEnginePub = Program.tdEnginePubStatus // 获取 TdEngine_Pub 线程状态
-                    };
-                    SendMqttResponse(true, "success", appsStatus, reqid, clientId);
-                    break;
                 case "config":
                     var config = Toml.ReadFile<Config>("config.toml");
                     SendMqttResponse(true, "success", config, reqid, clientId);
@@ -116,6 +108,14 @@ namespace OpcDaClient
                 case "tags":
                     var tags = ReadTagsFromCsv("items.csv");
                     SendMqttResponse(true, "success", tags, reqid, clientId);
+                    break;
+                case "apps":
+                    var appsStatus = new
+                    {
+                        opcDaSub = Program.opcDaSubStatus, // 获取 OPCDA_Sub 线程状态
+                        tdEnginePub = Program.tdEnginePubStatus // 获取 TdEngine_Pub 线程状态
+                    };
+                    SendMqttResponse(true, "success", appsStatus, reqid, clientId);
                     break;
                 case "rtdata":
                     var rtdata = Program.opcDaSubInstance.GetAllData();
@@ -129,8 +129,116 @@ namespace OpcDaClient
 
         private void HandleSetCommand(string type, Dictionary<string, object> json, string reqid, string clientId)
         {
+            switch (type)
+            { 
+                case "start":
+                    if (json.ContainsKey("data"))
+                    {
+                        var id = (string)json["data"];
+                        switch (id)
+                        {
+                            case "opcDaSub":
+                                if (Program.opcDaSubStatus)
+                                {
+                                    SendMqttResponse(false, "opcDaSub is already running", null, reqid, clientId);
+                                    return;
+                                }
+                                Program.opcDaSubInstance = new OPC_LiteDB();
+                                Program.opcDaSubInstance.Start();
+                                Program.opcDaSubStatus = true;
+                                SendMqttResponse(true, id + " start success", null, reqid, clientId);
+                                break;
+                            case "tdEnginePub":
+                                if (Program.tdEnginePubStatus)
+                                {
+                                    SendMqttResponse(false, "tdEnginePub is already running", null, reqid, clientId);
+                                    return;
+                                }
+                                Program.tdEnginePubInstance = new TdEngine_Pub(Program.opcDaSubInstance);
+                                Program.tdEnginePubInstance.Start();
+                                Program.tdEnginePubStatus = true;
+                                SendMqttResponse(true, id + " start success", null, reqid, clientId);
+                                break;
+                            default:
+                                SendMqttResponse(false, "Unsupported id", null, reqid, clientId);
+                                return;
+                        }
+                    }
+                    else
+                    {
+                        SendMqttResponse(false, "Missing id", null, reqid, clientId);
+                    }
+                    break;
+                case "stop":
+                    if (json.ContainsKey("data"))
+                    {
+                        var id = (string)json["data"];
+                        switch (id)
+                        {
+                            case "opcDaSub":
+                                if (!Program.tdEnginePubStatus)
+                                {
+                                    var message = "tdEnginePub 已经停止";
+                                    SendMqttResponse(false, message, null, reqid, clientId);
+                                    return;
+                                }
+                                Program.opcDaSubInstance.Stop();
+                                Program.opcDaSubStatus = false;
+                                SendMqttResponse(true, id + " stop success", null, reqid, clientId);
+                                break;
+                            case "tdEnginePub":
+                                if (!Program.opcDaSubStatus)
+                                {
+                                    var message = "opcDaSub 已经停止";
+                                    SendMqttResponse(false, message, null, reqid, clientId);
+                                    return;
+                                }
+                                Program.tdEnginePubInstance.Stop();
+                                Program.tdEnginePubStatus = false;
+                                SendMqttResponse(true, id + "stop success", null, reqid, clientId);
+                                break;
+                        }
+                    }
+                    else
+                    {
+                        SendMqttResponse(false, "Missing id", null, reqid, clientId);
+                    }
+                    break;
+                case "restart":
+                    if (Program.opcDaSubStatus)
+                    {
+                        Program.opcDaSubInstance.Stop();
+                        Program.opcDaSubStatus = false;
+                    }
+                    if (Program.tdEnginePubStatus)
+                    {
+                        Program.tdEnginePubInstance.Stop();
+                        Program.tdEnginePubStatus = false;
+                    }
+                    Program.opcDaSubInstance = new OPC_LiteDB();
+                    Program.opcDaSubInstance.Start();
+                    Program.opcDaSubStatus = true;
+                    Program.tdEnginePubInstance = new TdEngine_Pub(Program.opcDaSubInstance);
+                    Program.tdEnginePubInstance.Start();
+                    Program.tdEnginePubStatus = true;
+                    SendMqttResponse(true, "restart success", null, reqid, clientId);
+                    break;
+                case "config":
+                    var config = JsonConvert.DeserializeObject<Config>(json["data"].ToString());
+                    Toml.WriteFile(config, "config.toml");
+                    SendMqttResponse(true, "Configuration updated", null, reqid, clientId);
+                    break;
+                case "tags":
+                        var tags = JsonConvert.DeserializeObject<List<string[]>>(json["data"].ToString());
+                        WriteTagsToCsv("items.csv", tags);
+                        SendMqttResponse(true, "Tags updated", null, reqid, clientId);
+                        break;
+                default:
+                    SendMqttResponse(false, "Unsupported type", null, reqid, clientId);
+                    break;
+            }
             // Implement set command handling here
-            SendMqttResponse(false, "Set command not implemented", null, reqid, clientId);
+            // SendMqttResponse(false, "Set command not implemented", null, reqid, clientId);
         }
 
         private void SendMqttResponse(bool result, string message, object data, string reqid, string clientId)
@@ -221,6 +329,38 @@ namespace OpcDaClient
     
             return result.ToArray();
         }
+
+        private void WriteTagsToCsv(string filePath, List<string[]> tags)
+        {
+            try
+            {
+                // 确保文件目录存在
+                var directory = Path.GetDirectoryName(filePath);
+                if (!string.IsNullOrEmpty(directory) && !Directory.Exists(directory))
+                {
+                    Directory.CreateDirectory(directory);
+                }
+
+                using (var writer = new StreamWriter(filePath, false, Encoding.UTF8))
+                {
+                    // 写入表头
+                    writer.WriteLine("点名,描述,类型,OPC_Item");
+
+                    // 写入每一行数据
+                    foreach (var tag in tags)
+                    {
+                        writer.WriteLine(string.Join(",", tag));
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                // 捕获异常并记录错误信息
+                Console.WriteLine($"写入CSV文件时出错: {ex.Message}");
+                throw;
+            }
+        }
+
         public class OpcDaConfig
         {
             public string Host { get; set; }

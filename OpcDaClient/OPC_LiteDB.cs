@@ -23,6 +23,8 @@ namespace OpcDaClient
         private IMqttClient _mqttClient;
         private IMqttClientOptions _mqttOptions;
         private bool _running = true;
+        private bool _sync = false;
+        private bool _async = true;
         private Thread _opcThread;
         private ConcurrentQueue<Dictionary<string, ItemValueResult>> _dataQueue = new ConcurrentQueue<Dictionary<string, ItemValueResult>>();
         private const int MAX_QUEUE_SIZE = 10000;
@@ -128,10 +130,12 @@ namespace OpcDaClient
                     {
                         ItemValueResult[] syncValues = group.Read(group.Items);
                         Console.WriteLine("同步读数据成功");
+                        _sync = true;
                         foreach (ItemValueResult value in syncValues)
                         {
                             Console.WriteLine("同步读：ITEM：{0}，value：{1}，quality：{2}", value.ItemName, value.Value, value.Quality);
                         }
+                        
                     }
                     catch (Exception ex)
                     {
@@ -143,6 +147,7 @@ namespace OpcDaClient
                     {
                         IRequest quest = null;
                         group.Read(group.Items, 1, this.AsyncReadComplete, out quest);
+                        _async = true;
                         Console.WriteLine("异步读数据成功");
                     }
                     catch (Exception ex)
@@ -150,8 +155,15 @@ namespace OpcDaClient
                         Console.WriteLine($"异步读数据失败: {ex.Message}");
                     }
 
-                    group.DataChanged += new DataChangedEventHandler(this.OnTransactionCompleted);
-
+                    if (_async)
+                    {
+                        group.DataChanged += new DataChangedEventHandler(this.OnTransactionCompleted);
+                    }
+                    else
+                    {
+                        Console.WriteLine("异步读不可用");
+                    }
+                    
                     while (_running)
                     {
                         Thread.Sleep(100);
@@ -220,7 +232,13 @@ namespace OpcDaClient
                     }
                 }
             }
+            //保存数据到队列
+            if (_dataQueue.Count() < MAX_QUEUE_SIZE)
+            {
+                _dataQueue.Enqueue(dataMap);
+            }
 
+            //发布数据到MQTT
             try
             {
                 var newMap = new Dictionary<string, object>();
@@ -247,6 +265,7 @@ namespace OpcDaClient
                 Console.WriteLine($"MQTT发布失败: {ex.Message}");
             }
 
+            //保存数据到LiteDB
             SaveDataToLiteDb(dataMap);
         }
 

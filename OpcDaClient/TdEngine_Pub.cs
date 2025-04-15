@@ -171,6 +171,7 @@ namespace OpcDaClient
                                         Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] 错误: 插入数据到表{tableName}失败 - {ex.Message}\n数据: Timestamp={item.Timestamp}, Value={item.Value}");
                                     }
                                 }
+                                
                             }
                             // 缩短等待间隔并检查运行状态
                             for (int i = 0; i < 10; i++)
