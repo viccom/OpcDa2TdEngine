@@ -6,21 +6,31 @@ using Newtonsoft.Json;
 using System.Windows.Forms;
 using System.Threading;
 using System.Timers;
+using MQTTnet;
+using MQTTnet.Client;
+using MQTTnet.Client.Options;
 
 namespace OPCDAClient_GUI
 {
+
+
     public partial class Form1 : Form
     {
         // 新增：在Form1中添加对服务状态检查的支持
         private Thread _checkStatusThread;
         private System.Timers.Timer _statusTimer;
         private HttpClient _httpClient;
+        // 新增：MQTTClient
+        private IMqttClient _mqttClient;
+        private IMqttClientOptions _mqttOptions;
+        private readonly string _mqClientId = "GUI_" + GenerateShortGuid();
+        
         public Form1()
         {
             InitializeComponent();
-            InitializeStatusChecker();
-            // 启动服务状态检查线程
             InitializeInstallChecker();
+            // 新增：绑定 mqtt_bt 按钮点击事件
+            mqtt_bt.Click += Mqtt_bt_Click;
         }
 
         private void InitializeInstallChecker()
@@ -40,7 +50,17 @@ namespace OPCDAClient_GUI
                 {
                     UpdateCheckBox(exists);
                 });
-                Thread.Sleep(5000); // 每5秒检查一次
+                // 检查服务是否运行
+                if (exists)
+                {
+                    bool Service_Run = CheckServiceRun("OpcDa2TdEngine");
+                    // 使用Invoke更新UI
+                    this.Invoke((MethodInvoker)delegate
+                    {
+                        UpdateInstallBt(Service_Run);
+                    });
+                }
+                Thread.Sleep(3000); // 每5秒检查一次
             }
         }
 
@@ -52,6 +72,21 @@ namespace OPCDAClient_GUI
                 if (service.ServiceName == serviceName)
                 {
                     return true;
+                }
+            }
+            return false;
+        }
+
+        private bool CheckServiceRun(string serviceName)
+        {
+            foreach (ServiceController service in ServiceController.GetServices())
+            {
+                if (service.ServiceName == serviceName)
+                {
+                    if (service.Status == ServiceControllerStatus.Running)
+                    {
+                        return true;
+                    }
                 }
             }
             return false;
@@ -69,6 +104,20 @@ namespace OPCDAClient_GUI
             {
                 Inst_install.Text = "未安装";
                 Inst_install.BackColor = System.Drawing.Color.OrangeRed;
+            }
+        }
+
+        private void UpdateInstallBt(bool exists)
+        {
+            if (exists)
+            {
+                install_bt.Text = "停止";
+                install_bt.BackColor = System.Drawing.Color.OrangeRed;
+            }
+            else
+            {
+                install_bt.Text = "启动";
+                install_bt.BackColor = System.Drawing.Color.Gray;
             }
         }
 
@@ -168,6 +217,31 @@ namespace OPCDAClient_GUI
             UpdateButton(tdengine_bt, data.data.tdEnginePub);
         }
 
+        
+        private void MqUpdateControls(ServiceData data)
+        {
+            if (InvokeRequired)
+            {
+                Invoke(new Action(() => MqUpdateControls(data)));
+                return;
+            }
+            opcda_bt.Visible = true;
+            tdengine_bt.Visible = true;
+            
+            restart.Visible = true;
+            Inst_run.Text = "已启动";
+            Inst_run.BackColor = Color.SeaGreen;
+        
+            // 更新OPC DA服务状态
+            UpdateLabel(opcda_run, data.opcDaSub);
+            UpdateButton(opcda_bt, data.opcDaSub);
+
+            // 更新TDengine服务状态
+            UpdateLabel(tdengine_run, data.tdEnginePub);
+            UpdateButton(tdengine_bt, data.tdEnginePub);
+
+
+        }
         private void UpdateLabel(Label lb, bool isRunning)
         {
             lb.Text = isRunning ? "运行中" : "已停止";
@@ -325,6 +399,203 @@ namespace OPCDAClient_GUI
             {
                 MessageBox.Show($"Error restarting service {id}: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
+        }
+
+        private void install_bt_Click(object sender, EventArgs e)
+        {
+            if (Inst_install.Text != "已安装")
+            {
+                MessageBox.Show("本地服务未安装", "错误", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                return;
+            }
+            if (install_bt.Text == "启动")
+            {
+                if (MessageBox.Show("确定要启动服务吗？", "确认", MessageBoxButtons.YesNo, MessageBoxIcon.Question) == DialogResult.Yes)
+                {
+                    StartService("OpcDa2TdEngine");
+                }
+            }
+            else
+            {
+                if (MessageBox.Show("确定要停止服务吗？", "确认", MessageBoxButtons.YesNo, MessageBoxIcon.Question) == DialogResult.Yes)
+                {
+                    StopService("OpcDa2TdEngine");
+                }
+            }
+        }
+        private void StartService(string serviceName)
+        {
+            try
+            {
+                ServiceController sc = new ServiceController(serviceName);
+                if (sc.Status != ServiceControllerStatus.Running)
+                {
+                    sc.Start();
+                    sc.WaitForStatus(ServiceControllerStatus.Running, TimeSpan.FromSeconds(10));
+                    AppendToLogs($"服务 {serviceName} 启动成功.");
+                }
+                else
+                {
+                    AppendToLogs($"服务 {serviceName} 已经处于运行状态.");
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"启动服务 {serviceName} 时发生错误: {ex.Message}", "错误", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
+
+        private void StopService(string serviceName)
+        {
+            try
+            {
+                ServiceController sc = new ServiceController(serviceName);
+                if (sc.Status == ServiceControllerStatus.Running)
+                {
+                    sc.Stop();
+                    sc.WaitForStatus(ServiceControllerStatus.Stopped, TimeSpan.FromSeconds(10));
+                    AppendToLogs($"服务 {serviceName} 已停止.");
+                }
+                else
+                {
+                    AppendToLogs($"服务 {serviceName} 当前未在运行.");
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"停止服务 {serviceName} 时发生错误: {ex.Message}", "错误", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
+
+        // 新增：MQTT 连接函数
+        private async Task ConnectMqttAsync()
+        {
+            try
+            {
+                var mqttFactory = new MqttFactory();
+                _mqttClient = mqttFactory.CreateMqttClient();
+
+                var brokerIp = mqtt_node.Text.Trim();
+                if (string.IsNullOrEmpty(brokerIp))
+                {
+                    MessageBox.Show("请输入有效的 MQTT Broker IP 地址", "错误", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    return;
+                }
+
+                _mqttOptions = new MqttClientOptionsBuilder()
+                    .WithTcpServer(brokerIp, 6883)
+                    .WithClientId(_mqClientId)
+                    .WithCredentials("admin", "123456")
+                    .Build();
+
+                var response = await _mqttClient.ConnectAsync(_mqttOptions, CancellationToken.None);
+
+                if (response.ResultCode.ToString() == "Success") // 替代 MqttClientConnectResultCode.Success
+                {
+                    AppendToLogs("MQTT 连接成功");
+                    mqtt_node.Enabled = false;
+                    mqtt_bt.Invoke((MethodInvoker)delegate { mqtt_bt.Text = "断开"; });
+
+                    // 订阅多个主题 /status/apps
+                    // var topicFilter = new MqttTopicFilterBuilder()
+                    //     .WithTopic("/status/apps")
+                    //     .Build();
+                    await _mqttClient.SubscribeAsync("/status/apps");
+                    await _mqttClient.SubscribeAsync("/opcda/data");
+                    await _mqttClient.SubscribeAsync("client/" + _mqClientId + "/response");
+
+                    AppendToLogs("已订阅主题: /status/apps");
+
+                    // 设置消息接收处理
+                    _mqttClient.UseApplicationMessageReceivedHandler(e =>
+                    {
+                        var topic = e.ApplicationMessage.Topic;
+                        var payload = System.Text.Encoding.UTF8.GetString(e.ApplicationMessage.Payload);
+                        
+                        if (topic == "client/" + _mqClientId + "/response")
+                        {
+                            // 处理 /client/<clientId>/response 主题的消息
+                            // ...
+                        }
+                        if (topic == "/status/apps")
+                        {
+                            AppendToLogs($"收到消息: {payload}");
+                            try
+                            {
+                                var status = JsonConvert.DeserializeObject<ServiceData>(payload);
+                                this.Invoke((MethodInvoker)delegate
+                                {
+                                    MqUpdateControls(status);
+                                });
+                            }
+                            catch (Exception ex)
+                            {
+                                AppendToLogs($"解析 MQTT 消息失败: {ex.Message}");
+                            }
+                        }
+                        if (topic == "/opcda/data")
+                        {
+                            // 处理 /opcda/data 主题的消息
+                        }
+
+                        
+                    });
+                }
+                else
+                {
+                    AppendToLogs($"MQTT 连接失败: {response.ResultCode}");
+                }
+            }
+            catch (Exception ex)
+            {
+                AppendToLogs($"MQTT 连接异常: {ex.Message}");
+            }
+        }
+
+        // 新增：MQTT 断开连接函数
+        private async Task DisconnectMqttAsync()
+        {
+            try
+            {
+                if (_mqttClient != null && _mqttClient.IsConnected)
+                {
+                    await _mqttClient.DisconnectAsync();
+                    AppendToLogs("MQTT 已断开连接");
+                    mqtt_bt.Invoke((MethodInvoker)delegate { mqtt_bt.Text = "连接"; });
+                    mqtt_node.Enabled = true;
+                    Inst_run.Text = "";
+                    Inst_run.BackColor = Color.Gray;
+                    restart.Visible = false;
+                    opcda_run.Text = "";
+                    opcda_bt.Visible = false;
+                    tdengine_run.Text = "";
+                    tdengine_bt.Visible = false;
+                    
+                }
+            }
+            catch (Exception ex)
+            {
+                AppendToLogs($"MQTT 断开连接异常: {ex.Message}");
+            }
+        }
+
+        // 新增：mqtt_bt 按钮点击事件处理
+        private async void Mqtt_bt_Click(object sender, EventArgs e)
+        {
+            if (_mqttClient == null || !_mqttClient.IsConnected)
+            {
+                await ConnectMqttAsync();
+            }
+            else
+            {
+                await DisconnectMqttAsync();
+            }
+        }
+
+        
+        public static string GenerateShortGuid(int length = 8)
+        {
+            return Guid.NewGuid().ToString("N").Substring(0, length); // 取前8位
         }
 
     }

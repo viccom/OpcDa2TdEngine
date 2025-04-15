@@ -77,11 +77,21 @@
             textBox2 = new TextBox();
             label2 = new Label();
             textBox1 = new TextBox();
+            tabPage4 = new TabPage();
+            advancedDataGridView1 = new Zuby.ADGV.AdvancedDataGridView();
+            Column11 = new DataGridViewTextBoxColumn();
+            Column12 = new DataGridViewTextBoxColumn();
+            Column13 = new DataGridViewTextBoxColumn();
+            Column14 = new DataGridViewTextBoxColumn();
             label1 = new Label();
             Inst_install = new CheckBox();
             label14 = new Label();
             Inst_run = new CheckBox();
             restart = new Button();
+            label7 = new Label();
+            mqtt_node = new TextBox();
+            mqtt_bt = new Button();
+            install_bt = new Button();
             tabControl1.SuspendLayout();
             tabPage1.SuspendLayout();
             groupBox1.SuspendLayout();
@@ -95,6 +105,8 @@
             ((System.ComponentModel.ISupportInitialize)tagsTable).BeginInit();
             groupBox3.SuspendLayout();
             groupBox2.SuspendLayout();
+            tabPage4.SuspendLayout();
+            ((System.ComponentModel.ISupportInitialize)advancedDataGridView1).BeginInit();
             SuspendLayout();
             // 
             // tabControl1
@@ -102,8 +114,9 @@
             tabControl1.Controls.Add(tabPage1);
             tabControl1.Controls.Add(tabPage2);
             tabControl1.Controls.Add(tabPage3);
+            tabControl1.Controls.Add(tabPage4);
             tabControl1.Font = new Font("Microsoft YaHei UI", 12F, FontStyle.Regular, GraphicsUnit.Point, 134);
-            tabControl1.Location = new Point(0, 50);
+            tabControl1.Location = new Point(0, 51);
             tabControl1.Margin = new Padding(4);
             tabControl1.Name = "tabControl1";
             tabControl1.SelectedIndex = 0;
@@ -173,6 +186,7 @@
             tdengine_bt.TabIndex = 2;
             tdengine_bt.Text = "button2";
             tdengine_bt.UseVisualStyleBackColor = true;
+            tdengine_bt.Visible = false;
             tdengine_bt.Click += tdengine_bt_Click;
             // 
             // tdengine_run
@@ -214,6 +228,7 @@
             opcda_bt.TabIndex = 2;
             opcda_bt.Text = "button1";
             opcda_bt.UseVisualStyleBackColor = true;
+            opcda_bt.Visible = false;
             opcda_bt.Click += opcda_bt_Click;
             // 
             // opcda_run
@@ -255,6 +270,7 @@
             dataView.Name = "dataView";
             dataView.Size = new Size(1003, 650);
             dataView.TabIndex = 0;
+            dataView.VirtualMode = true;
             // 
             // Column1
             // 
@@ -549,15 +565,69 @@
             textBox1.TabIndex = 0;
             textBox1.Text = "localhost";
             // 
+            // tabPage4
+            // 
+            tabPage4.Controls.Add(advancedDataGridView1);
+            tabPage4.Location = new Point(4, 30);
+            tabPage4.Name = "tabPage4";
+            tabPage4.Padding = new Padding(3);
+            tabPage4.Size = new Size(1001, 653);
+            tabPage4.TabIndex = 3;
+            tabPage4.Text = "dataView";
+            tabPage4.UseVisualStyleBackColor = true;
+            // 
+            // advancedDataGridView1
+            // 
+            advancedDataGridView1.ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.AutoSize;
+            advancedDataGridView1.Columns.AddRange(new DataGridViewColumn[] { Column11, Column12, Column13, Column14 });
+            advancedDataGridView1.FilterAndSortEnabled = true;
+            advancedDataGridView1.FilterStringChangedInvokeBeforeDatasourceUpdate = true;
+            advancedDataGridView1.Location = new Point(3, 3);
+            advancedDataGridView1.MaxFilterButtonImageHeight = 23;
+            advancedDataGridView1.Name = "advancedDataGridView1";
+            advancedDataGridView1.RightToLeft = RightToLeft.No;
+            advancedDataGridView1.Size = new Size(1002, 644);
+            advancedDataGridView1.SortStringChangedInvokeBeforeDatasourceUpdate = true;
+            advancedDataGridView1.TabIndex = 0;
+            advancedDataGridView1.VirtualMode = true;
+            // 
+            // Column11
+            // 
+            Column11.HeaderText = "Column11";
+            Column11.MinimumWidth = 24;
+            Column11.Name = "Column11";
+            Column11.SortMode = DataGridViewColumnSortMode.Programmatic;
+            // 
+            // Column12
+            // 
+            Column12.HeaderText = "Column12";
+            Column12.MinimumWidth = 24;
+            Column12.Name = "Column12";
+            Column12.SortMode = DataGridViewColumnSortMode.Programmatic;
+            // 
+            // Column13
+            // 
+            Column13.HeaderText = "Column13";
+            Column13.MinimumWidth = 24;
+            Column13.Name = "Column13";
+            Column13.SortMode = DataGridViewColumnSortMode.Programmatic;
+            // 
+            // Column14
+            // 
+            Column14.HeaderText = "Column14";
+            Column14.MinimumWidth = 24;
+            Column14.Name = "Column14";
+            Column14.SortMode = DataGridViewColumnSortMode.Programmatic;
+            // 
             // label1
             // 
             label1.AutoSize = true;
             label1.Font = new Font("Microsoft YaHei UI", 14.25F, FontStyle.Bold, GraphicsUnit.Point, 134);
-            label1.Location = new Point(461, 16);
+            label1.Location = new Point(689, 16);
             label1.Name = "label1";
             label1.Size = new Size(145, 26);
             label1.TabIndex = 1;
-            label1.Text = "后台服务状态：";
+            label1.Text = "节点服务状态：";
             // 
             // Inst_install
             // 
@@ -568,7 +638,7 @@
             Inst_install.CheckState = CheckState.Checked;
             Inst_install.FlatStyle = FlatStyle.Flat;
             Inst_install.ForeColor = SystemColors.ButtonHighlight;
-            Inst_install.Location = new Point(369, 13);
+            Inst_install.Location = new Point(154, 13);
             Inst_install.Name = "Inst_install";
             Inst_install.Size = new Size(52, 31);
             Inst_install.TabIndex = 5;
@@ -579,22 +649,22 @@
             // 
             label14.AutoSize = true;
             label14.Font = new Font("Microsoft YaHei UI", 14.25F, FontStyle.Bold, GraphicsUnit.Point, 134);
-            label14.Location = new Point(221, 16);
+            label14.Location = new Point(7, 16);
             label14.Name = "label14";
             label14.Size = new Size(145, 26);
             label14.TabIndex = 4;
-            label14.Text = "后台服务安装：";
+            label14.Text = "本地服务安装：";
             // 
             // Inst_run
             // 
             Inst_run.Appearance = Appearance.Button;
             Inst_run.AutoSize = true;
-            Inst_run.BackColor = Color.FloralWhite;
+            Inst_run.BackColor = Color.Gray;
             Inst_run.Checked = true;
             Inst_run.CheckState = CheckState.Checked;
             Inst_run.FlatStyle = FlatStyle.Flat;
             Inst_run.ForeColor = SystemColors.ButtonHighlight;
-            Inst_run.Location = new Point(612, 13);
+            Inst_run.Location = new Point(838, 13);
             Inst_run.Name = "Inst_run";
             Inst_run.Size = new Size(52, 31);
             Inst_run.TabIndex = 6;
@@ -603,19 +673,62 @@
             // 
             // restart
             // 
-            restart.Location = new Point(696, 12);
+            restart.Location = new Point(901, 12);
             restart.Name = "restart";
-            restart.Size = new Size(97, 36);
+            restart.Size = new Size(83, 36);
             restart.TabIndex = 7;
             restart.Text = "重启";
             restart.UseVisualStyleBackColor = true;
+            restart.Visible = false;
             restart.Click += restart_Click;
+            // 
+            // label7
+            // 
+            label7.AutoSize = true;
+            label7.Font = new Font("Microsoft YaHei UI", 14.25F, FontStyle.Bold);
+            label7.Location = new Point(318, 16);
+            label7.Name = "label7";
+            label7.Size = new Size(107, 26);
+            label7.TabIndex = 8;
+            label7.Text = "当前节点：";
+            // 
+            // mqtt_node
+            // 
+            mqtt_node.Location = new Point(428, 16);
+            mqtt_node.Name = "mqtt_node";
+            mqtt_node.Size = new Size(146, 28);
+            mqtt_node.TabIndex = 9;
+            mqtt_node.Text = "127.0.0.1";
+            // 
+            // mqtt_bt
+            // 
+            mqtt_bt.Location = new Point(586, 12);
+            mqtt_bt.Name = "mqtt_bt";
+            mqtt_bt.Size = new Size(83, 36);
+            mqtt_bt.TabIndex = 10;
+            mqtt_bt.Text = "连接";
+            mqtt_bt.UseVisualStyleBackColor = true;
+            // 
+            // install_bt
+            // 
+            install_bt.BackColor = SystemColors.ControlDark;
+            install_bt.Location = new Point(231, 12);
+            install_bt.Name = "install_bt";
+            install_bt.Size = new Size(83, 36);
+            install_bt.TabIndex = 11;
+            install_bt.Text = "启动";
+            install_bt.UseVisualStyleBackColor = false;
+            install_bt.Click += install_bt_Click;
             // 
             // Form1
             // 
             AutoScaleDimensions = new SizeF(10F, 21F);
             AutoScaleMode = AutoScaleMode.Font;
             ClientSize = new Size(1009, 729);
+            Controls.Add(install_bt);
+            Controls.Add(mqtt_bt);
+            Controls.Add(mqtt_node);
+            Controls.Add(label7);
             Controls.Add(restart);
             Controls.Add(Inst_run);
             Controls.Add(Inst_install);
@@ -645,6 +758,8 @@
             groupBox3.PerformLayout();
             groupBox2.ResumeLayout(false);
             groupBox2.PerformLayout();
+            tabPage4.ResumeLayout(false);
+            ((System.ComponentModel.ISupportInitialize)advancedDataGridView1).EndInit();
             ResumeLayout(false);
             PerformLayout();
         }
@@ -705,5 +820,15 @@
         private Label label14;
         private CheckBox Inst_run;
         private Button restart;
+        private Label label7;
+        private TextBox mqtt_node;
+        private Button mqtt_bt;
+        private TabPage tabPage4;
+        private Zuby.ADGV.AdvancedDataGridView advancedDataGridView1;
+        private DataGridViewTextBoxColumn Column11;
+        private DataGridViewTextBoxColumn Column12;
+        private DataGridViewTextBoxColumn Column13;
+        private DataGridViewTextBoxColumn Column14;
+        private Button install_bt;
     }
 }
