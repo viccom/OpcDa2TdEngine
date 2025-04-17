@@ -39,11 +39,11 @@ const filteredData = computed(() =>
 
 // el-table-v2 列定义
 const columns: AnyColumn[] = [
-  { key: 'key', dataKey: 'key', title: 'Key', minWidth: 100, width: 120, flexGrow: 1 },
-  { key: 'value', dataKey: 'value', title: 'Value', minWidth: 100, width: 120, flexGrow: 1 },
-  { key: 'timestamp', dataKey: 'timestamp', title: 'Timestamp', minWidth: 180, width: 200, flexGrow: 2 },
-  { key: 'quality', dataKey: 'quality', title: 'Quality', minWidth: 80, width: 100, flexGrow: 1 },
-  { key: 'itemName', dataKey: 'itemName', title: 'ItemName', minWidth: 180, width: 200, flexGrow: 2 }
+  { key: 'key', dataKey: 'key', title: '点名', minWidth: 100, width: 120, flexGrow: 1 },
+  { key: 'value', dataKey: 'value', title: '数值', minWidth: 100, width: 120, flexGrow: 1 },
+  { key: 'timestamp', dataKey: 'timestamp', title: '时间戳', minWidth: 180, width: 200, flexGrow: 2 },
+  { key: 'quality', dataKey: 'quality', title: '质量', minWidth: 80, width: 100, flexGrow: 1 },
+  { key: 'itemName', dataKey: 'itemName', title: 'OPC_item', minWidth: 180, width: 200, flexGrow: 2 }
 ];
 
 // 动态获取容器宽度，传递给 :width

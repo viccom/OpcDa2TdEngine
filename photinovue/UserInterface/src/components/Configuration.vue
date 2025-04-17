@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { ref } from 'vue';
+import { ref, inject, onMounted, onBeforeUnmount, defineExpose } from 'vue';
+import { ElMessage } from 'element-plus';
 
 const opcHost = ref('localhost');
 const opcProgId = ref('');
@@ -9,13 +10,178 @@ const tdDbName = ref('');
 const tdUsername = ref('');
 const tdPassword = ref('');
 
-function saveConfig() {
-  // 保存配置逻辑
+// 获取全局 mqttClient
+const mqttClient = inject<any>('mqttClient');
+// 获取全局 mqttClientId（App.vue 里 clientid 生成后可挂到 window 或 provide）
+let mqttClientId = '';
+onMounted(() => {
+  // 尝试从 window 取 clientid
+  mqttClientId = (window as any).mqttClientId || '';
+  // 或者你可以通过 provide/inject 方式获取
+});
+
+let responseHandler: any = null;
+
+function randomReqId() {
+  return 'web' + Math.floor(Math.random() * 1000000);
 }
 
-function resetConfig() {
-  // 重置配置逻辑
+function saveConfig() {
+  if (!mqttClient || !mqttClient.value) return;
+  mqttClientId = (window as any).mqttClientId || mqttClient.value.options?.clientId || mqttClient.value.options?.clientid || '';
+  if (!mqttClientId) {
+    ElMessage.error('无法获取 MQTT ClientId');
+    return;
+  }
+  const reqid = randomReqId();
+  const topicCmd = `client/${mqttClientId}/command`;
+  const topicResp = `client/${mqttClientId}/response`;
+  const payload = JSON.stringify({
+    cmd: 'set',
+    type: 'config',
+    data: {
+      OpcDa: {
+        Host: opcHost.value,
+        ProgID: opcProgId.value
+      },
+      TdEngine: {
+        Host: tdHost.value,
+        Port: tdPort.value ? Number(tdPort.value) : '',
+        Dbname: tdDbName.value,
+        Username: tdUsername.value,
+        Password: tdPassword.value
+      }
+    },
+    reqid
+  });
+
+  // 订阅响应主题
+  mqttClient.value.subscribe(topicResp);
+
+  // 响应处理
+  if (responseHandler) {
+    mqttClient.value.off('message', responseHandler);
+  }
+  responseHandler = (topic: string, message: Uint8Array) => {
+    if (topic === topicResp) {
+      try {
+        const resp = JSON.parse(message.toString());
+        if (resp.reqid === reqid) {
+          if (resp.result) {
+            ElMessage.success('配置保存成功！');
+          } else {
+            ElMessage.error('配置保存失败: ' + (resp.message || '未知错误'));
+          }
+
+        }
+
+      } catch (e) {
+        ElMessage.error("异常: " + (e as Error).message);
+      }
+    }
+  };
+  mqttClient.value.on('message', responseHandler);
+
+  // 发送请求
+  mqttClient.value.publish(topicCmd, payload);
 }
+
+function loadConfig() {
+  console.log('[Configuration.vue] loadConfig 被调用');
+  if (!mqttClient || !mqttClient.value) return;
+  // 获取 clientid
+  mqttClientId = (window as any).mqttClientId || mqttClient.value.options?.clientId || mqttClient.value.options?.clientid || '';
+  if (!mqttClientId) {
+    ElMessage.error('无法获取 MQTT ClientId');
+    return;
+  }
+  const reqid = randomReqId();
+  const topicCmd = `client/${mqttClientId}/command`;
+  const topicResp = `client/${mqttClientId}/response`;
+  const payload = JSON.stringify({
+    cmd: 'get',
+    type: 'config',
+    data: '',
+    reqid
+  });
+
+  // 订阅响应主题
+  mqttClient.value.subscribe(topicResp);
+
+  // 响应处理
+  if (responseHandler) {
+    mqttClient.value.off('message', responseHandler);
+  }
+  responseHandler = (topic: string, message: Uint8Array) => {
+    if (topic === topicResp) {
+      try {
+        const resp = JSON.parse(message.toString());
+        if (resp.reqid === reqid && resp.result && resp.data) {
+          // 解析并赋值
+          if (resp.data.OpcDa) {
+            opcHost.value = resp.data.OpcDa.Host ?? '';
+            opcProgId.value = resp.data.OpcDa.ProgID ?? '';
+          }
+          if (resp.data.TdEngine) {
+            tdHost.value = resp.data.TdEngine.Host ?? '';
+            tdPort.value = resp.data.TdEngine.Port?.toString() ?? '';
+            tdDbName.value = resp.data.TdEngine.Dbname ?? '';
+            tdUsername.value = resp.data.TdEngine.Username ?? '';
+            tdPassword.value = resp.data.TdEngine.Password ?? '';
+          }
+          if (resp.result) {
+            ElMessage.success('配置加载成功！');
+          } else {
+            ElMessage.error('配置加载失败: ' + (resp.message || '未知错误'));
+          }
+        }
+      } catch (e) {
+        ElMessage.error("异常: " + (e as Error).message);
+      }
+    }
+  };
+  mqttClient.value.on('message', responseHandler);
+
+  // 发送请求
+  mqttClient.value.publish(topicCmd, payload);
+}
+
+// 提供给父组件获取表单数据
+function getFormData() {
+  const result = {
+    opcHost: opcHost.value,
+    opcProgId: opcProgId.value,
+    tdHost: tdHost.value,
+    tdPort: tdPort.value,
+    tdDbName: tdDbName.value,
+    tdUsername: tdUsername.value,
+    tdPassword: tdPassword.value
+  };
+  console.log('[Configuration.vue] getFormData', result);
+  return result;
+}
+
+// 提供给父组件设置表单数据
+function setFormData(data: any) {
+  console.log('[Configuration.vue] setFormData', data);
+  opcHost.value = data.opcHost ?? '';
+  opcProgId.value = data.opcProgId ?? '';
+  tdHost.value = data.tdHost ?? '';
+  tdPort.value = data.tdPort ?? '';
+  tdDbName.value = data.tdDbName ?? '';
+  tdUsername.value = data.tdUsername ?? '';
+  tdPassword.value = data.tdPassword ?? '';
+}
+
+// 暴露方法给父组件
+defineExpose({ getFormData, setFormData, loadConfig });
+
+onBeforeUnmount(() => {
+  if (mqttClient && mqttClient.value && responseHandler) {
+    mqttClient.value.off('message', responseHandler);
+    responseHandler = null;
+  }
+});
 </script>
 
 <template>
@@ -62,7 +228,7 @@ function resetConfig() {
     <!-- 按钮区域 -->
     <div class="button-row">
       <button @click="saveConfig">保存配置</button>
-      <button @click="resetConfig">重置配置</button>
+      <button @click="loadConfig">加载配置</button>
     </div>
   </div>
 </template>
@@ -91,7 +257,24 @@ function resetConfig() {
 }
 
 .input-row {
+  display: flex;
+  align-items: center;
   margin-bottom: 16px;
+}
+
+.input-row label {
+  display: inline-block;
+  width: 90px;
+  min-width: 90px;
+  text-align: right;
+  margin-right: 8px;
+}
+
+.input-row input {
+  flex: 1;
+  min-width: 100px;
+  padding: 6px 8px;
+  box-sizing: border-box;
 }
 
 .button-row {

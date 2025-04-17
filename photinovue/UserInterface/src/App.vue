@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { ref, provide, onMounted, onBeforeUnmount, computed } from "vue";
+import { ref, provide, onMounted, onBeforeUnmount, computed, watch } from "vue";
+import { nextTick } from "vue";
 import OverView from "./components/OverView.vue";
 import RtData from "./components/RtData.vue";
 import TagsList from "./components/TagsList.vue";
@@ -39,6 +40,8 @@ function log(msg: string) {
 
 let messageRegistered = false;
 
+let clientid = "WEB_" + Math.random().toString(16).substr(2, 8);
+
 function connectMqtt() {
   if (!window.mqtt) {
     log(
@@ -58,6 +61,7 @@ function connectMqtt() {
   log("尝试连接 MQTT Broker...");
   mqttClient.value = window.mqtt.connect("ws://localhost:6882/mqtt", {
     reconnectPeriod: 5000,
+    clientid,
     username: "admin",
     password: "123456",
   });
@@ -127,6 +131,9 @@ onMounted(() => {
       connectMqtt();
     }
   }, 10000);
+
+  // 挂到 window，供子组件读取
+  (window as any).mqttClientId = clientid;
 });
 
 onBeforeUnmount(() => {
@@ -154,12 +161,79 @@ const tabs = [
   { name: "日志", key: "logview" },
 ];
 const activeTab = ref("overview");
+const configurationRef = ref();
+const tagsListRef = ref();
+
+const LOCAL_CONFIG_KEY = 'photinovue_config_cache';
+const LOCAL_TAGS_KEY = 'photinovue_tags_cache';
+
+const prevTab = ref(activeTab.value);
+
 const debugMode = ref(false); // 新增：Debug 模式开关
 
 const paused = ref(false); // 新增：日志暂停状态
 const displayedLog = computed(() => {
   return paused.value ? appLog.value.slice(0, appLog.value.length) : appLog.value;
 });
+
+// 监听标签切换，处理本地缓存和自动加载
+watch(
+  activeTab,
+  async (tab) => {
+    console.log('[App.vue] 标签切换开始，当前标签:', tab, '上一个标签:', prevTab.value);
+
+    // --- 离开 Configuration 时保存表单 ---
+    if (prevTab.value === "config" && configurationRef.value && typeof configurationRef.value.getFormData === "function") {
+      const configData = configurationRef.value.getFormData();
+      if (configData && Object.values(configData).some(v => v && v !== '')) {
+        sessionStorage.setItem(LOCAL_CONFIG_KEY, JSON.stringify(configData));
+        console.log('[App.vue] Configuration 离开，已缓存表单数据');
+      }
+    }
+
+    // --- 离开 TagsList 时保存表格 ---
+    if (prevTab.value === "tagslist" && tagsListRef.value && typeof tagsListRef.value.getTableData === "function") {
+      const tagsData = tagsListRef.value.getTableData();
+      if (Array.isArray(tagsData) && tagsData.length > 0) {
+        sessionStorage.setItem(LOCAL_TAGS_KEY, JSON.stringify(tagsData));
+        console.log('[App.vue] TagsList 离开，已缓存表格数据');
+      }
+    }
+
+    // 等待组件挂载完成
+    await nextTick();
+
+    // --- 进入 Configuration 时加载本地缓存 ---
+    if (tab === "config" && configurationRef.value && typeof configurationRef.value.setFormData === "function") {
+      const cache = sessionStorage.getItem(LOCAL_CONFIG_KEY);
+      if (cache) {
+        try {
+          const parsed = JSON.parse(cache);
+          configurationRef.value.setFormData(parsed);
+          console.log('[App.vue] Configuration 激活，已加载本地缓存表单数据');
+        } catch {}
+      }
+    }
+
+    // --- 进入 TagsList 时加载本地缓存 ---
+    if (tab === "tagslist" && tagsListRef.value && typeof tagsListRef.value.setTableData === "function") {
+      const cache = sessionStorage.getItem(LOCAL_TAGS_KEY);
+      if (cache) {
+        try {
+          const parsed = JSON.parse(cache);
+          if (Array.isArray(parsed)) {
+            tagsListRef.value.setTableData(parsed);
+            console.log('[App.vue] TagsList 激活，已加载本地缓存表格数据');
+          }
+        } catch {}
+      }
+    }
+
+    // 关键：切换后更新 prevTab
+    console.log('[App.vue] 标签切换结束，当前标签:', tab, '上一个标签:', prevTab.value);
+    prevTab.value = tab;
+  }
+);
 </script>
 
 <template>
@@ -187,8 +261,8 @@ const displayedLog = computed(() => {
       <div class="tab-content">
         <OverView v-if="activeTab === 'overview'" />
         <RtData v-else-if="activeTab === 'rtdata'" />
-        <Configuration v-else-if="activeTab === 'config'" />
-        <TagsList v-else-if="activeTab === 'tagslist'" />
+        <Configuration v-else-if="activeTab === 'config'" ref="configurationRef" />
+        <TagsList v-else-if="activeTab === 'tagslist'" ref="tagsListRef" />
         <LogView v-else-if="activeTab === 'logview'" msg="LogView" />
         <!-- 全局日志面板，受 debugMode 控制 -->
 
