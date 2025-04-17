@@ -4,7 +4,7 @@
     <div ref="tableWrapper" style="width: 99%;">
       <ElTableV2
         :columns="columns"
-        :data="filteredData"
+        :data="filteredData || []"
         :width="tableWidth"
         :height="500"
         style="border: 1px solid #ebeef5;"
@@ -21,23 +21,19 @@ declare global {
   }
 }
 
-import { ref, computed, onMounted, onBeforeUnmount, nextTick } from 'vue';
+import { ref, computed, onMounted, onBeforeUnmount, nextTick, inject } from 'vue';
 import { ElTableV2 } from 'element-plus';
 import type { AnyColumn } from 'element-plus/es/components/table-v2/src/common';
 
-// mqtt 相关
-let client: any = null;
-let checkTimer: any = null;
-
-// mqtt 数据
-const data = ref<{ key: string, value: any, timestamp: string, quality: string, itemName: string }[]>([]);
+// 通过 inject 获取全局 rtDataList，增加默认值
+const rtDataList = inject<any>('rtDataList', ref([]));
 
 // 过滤逻辑
 const filterText = ref('');
 const filteredData = computed(() =>
-  data.value.filter((item) =>
-    item.key.toLowerCase().includes(filterText.value.toLowerCase()) ||
-    item.itemName.toLowerCase().includes(filterText.value.toLowerCase())
+  (rtDataList.value ?? []).filter((item: any) =>
+    item.key?.toLowerCase().includes(filterText.value.toLowerCase()) ||
+    item.itemName?.toLowerCase().includes(filterText.value.toLowerCase())
   )
 );
 
@@ -62,85 +58,12 @@ const updateTableWidth = () => {
   });
 };
 
-// mqtt 连接与重连
-function connectMqtt() {
-  if (!window.mqtt) {
-    alert('未检测到 MQTT 客户端库，请确认已在 index.html 中通过 CDN 引入 mqtt.min.js');
-    return;
-  }
-  if (client) {
-    client.end(true);
-    client = null;
-  }
-  client = window.mqtt.connect('ws://localhost:6882/mqtt', {
-    reconnectPeriod: 5000,
-    username: 'admin',
-    password: '123456'
-  });
-  client.on('connect', () => {
-    client.subscribe('/opcda/data');
-  });
-  client.on('reconnect', () => {
-    // 可选：记录日志
-  });
-  client.on('close', () => {
-    // 可选：记录日志
-  });
-  client.on('offline', () => {
-    // 可选：记录日志
-  });
-  client.on('error', () => {
-    // 可选：记录日志
-  });
-  client.on('message', (topic: string, message: Uint8Array) => {
-    if (topic === '/opcda/data') {
-      try {
-        const json = JSON.parse(message.toString());
-        // 增量更新表格数据
-        for (const key of Object.keys(json)) {
-          const idx = data.value.findIndex(row => row.key === key);
-          const newRow = {
-            key,
-            value: json[key]?.Value,
-            timestamp: json[key]?.Timestamp,
-            quality: json[key]?.Quality,
-            itemName: json[key]?.ItemName
-          };
-          if (idx !== -1) {
-            // 存在则更新
-            data.value[idx] = newRow;
-          } else {
-            // 不存在则新增
-            data.value.push(newRow);
-          }
-        }
-      } catch (e) {
-        // 可选：记录日志
-      }
-    }
-  });
-}
-
 onMounted(() => {
   updateTableWidth();
   window.addEventListener('resize', updateTableWidth);
-  connectMqtt();
-  checkTimer = setInterval(() => {
-    if (!client || !client.connected) {
-      connectMqtt();
-    }
-  }, 10000);
 });
 
 onBeforeUnmount(() => {
   window.removeEventListener('resize', updateTableWidth);
-  if (checkTimer) {
-    clearInterval(checkTimer);
-    checkTimer = null;
-  }
-  if (client) {
-    client.end();
-    client = null;
-  }
 });
 </script>

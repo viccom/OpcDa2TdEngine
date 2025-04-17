@@ -30,38 +30,6 @@ namespace OpcDaSubscription
             opcDaSubInstance = opcDaSub;
             tdEnginePubInstance = tdEnginePub;
             var exitEvent = new ManualResetEvent(false);
-
-            var options = new MqttServerOptionsBuilder()
-                .WithDefaultEndpointPort(6883) // 监听端口
-                .WithConnectionBacklog(100)    // 最大连接数.
-                .WithConnectionValidator(context => // 直接使用 WithConnectionValidator（异步委托）
-                {
-                    // 获取客户端提交的用户名和密码
-                    var username = context.Username;
-                    var password = context.Password;
-                    // 示例：检查用户名和密码（实际项目中应从数据库或配置中读取）
-                    if (username != "admin" || password != "123456")
-                    {
-                        context.ReasonCode = MqttConnectReasonCode.BadUserNameOrPassword;
-                        context.ReasonString = "用户名或密码错误";
-                        return;
-                    }
-                    Console.WriteLine($"Mqtt客户端已连接: {context.ClientId}");
-                })
-                .Build();
-            var mqttServer = new MqttFactory().CreateMqttServer();
-            
-            try
-            {
-                Console.WriteLine("正在启动 MQTT Broker...");
-                await mqttServer.StartAsync(options);
-                Console.WriteLine("MQTT Broker 已成功启动，监听端口: 6883");
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"启动 MQTT Broker 失败: {ex.Message}");
-                return; // 如果启动失败，退出程序
-            }
             
             // 修改退出事件处理程序
             Console.CancelKeyPress += (sender, e) => 
@@ -69,8 +37,6 @@ namespace OpcDaSubscription
                 opcDaSub.Stop();
                 tdEnginePub.Stop();
                 mattSub.Stop();
-                mqttServer.StopAsync().Wait();
-                
                 e.Cancel = true;
                 exitEvent.Set();
             };
