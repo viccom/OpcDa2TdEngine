@@ -4,10 +4,13 @@
     <div ref="tableWrapper" style="width: 99%;">
       <ElTableV2
         :columns="columns"
-        :data="filteredData || []"
+        :data="sortedData || []"
         :width="tableWidth"
         :height="500"
         style="border: 1px solid #ebeef5;"
+        :sort-by="sortBy"
+        :sort-direction="sortDirection"
+        @sort="handleSort"
       />
     </div>
   </div>
@@ -24,6 +27,7 @@ declare global {
 import { ref, computed, onMounted, onBeforeUnmount, nextTick, inject } from 'vue';
 import { ElTableV2 } from 'element-plus';
 import type { AnyColumn } from 'element-plus/es/components/table-v2/src/common';
+import type { SortBy } from 'element-plus/es/components/table-v2/src/types';
 
 // 通过 inject 获取全局 rtDataList，增加默认值
 const rtDataList = inject<any>('rtDataList', ref([]));
@@ -37,13 +41,37 @@ const filteredData = computed(() =>
   )
 );
 
-// el-table-v2 列定义
+// 排序相关逻辑
+const sortBy = ref('key'); // 默认第1列key
+const sortDirection = ref<'ASC' | 'DESC'>('ASC');
+
+const handleSort = (params: { key: string; order: 'ASC' | 'DESC' }) => {
+  sortBy.value = params.key;
+  sortDirection.value = params.order;
+};
+
+const sortedData = computed(() => {
+  const data = filteredData.value.slice();
+  if (!sortBy.value) return data;
+  return data.sort((a: any, b: any) => {
+    const valA = a[sortBy.value];
+    const valB = b[sortBy.value];
+    if (valA == null && valB == null) return 0;
+    if (valA == null) return sortDirection.value === 'ASC' ? -1 : 1;
+    if (valB == null) return sortDirection.value === 'ASC' ? 1 : -1;
+    if (valA < valB) return sortDirection.value === 'ASC' ? -1 : 1;
+    if (valA > valB) return sortDirection.value === 'ASC' ? 1 : -1;
+    return 0;
+  });
+});
+
+// el-table-v2 列定义，增加 sortable 属性
 const columns: AnyColumn[] = [
-  { key: 'key', dataKey: 'key', title: '点名', minWidth: 100, width: 120, flexGrow: 1 },
-  { key: 'value', dataKey: 'value', title: '数值', minWidth: 100, width: 120, flexGrow: 1 },
-  { key: 'timestamp', dataKey: 'timestamp', title: '时间戳', minWidth: 180, width: 200, flexGrow: 2 },
-  { key: 'quality', dataKey: 'quality', title: '质量', minWidth: 80, width: 100, flexGrow: 1 },
-  { key: 'itemName', dataKey: 'itemName', title: 'OPC_item', minWidth: 180, width: 200, flexGrow: 2 }
+  { key: 'key', dataKey: 'key', title: '点名', minWidth: 100, width: 120, flexGrow: 1, sortable: true },
+  { key: 'value', dataKey: 'value', title: '数值', minWidth: 100, width: 120, flexGrow: 1, sortable: true },
+  { key: 'timestamp', dataKey: 'timestamp', title: '时间戳', minWidth: 180, width: 200, flexGrow: 2, sortable: true },
+  { key: 'quality', dataKey: 'quality', title: '质量', minWidth: 80, width: 100, flexGrow: 1, sortable: true },
+  { key: 'itemName', dataKey: 'itemName', title: 'OPC_item', minWidth: 180, width: 200, flexGrow: 2, sortable: true }
 ];
 
 // 动态获取容器宽度，传递给 :width

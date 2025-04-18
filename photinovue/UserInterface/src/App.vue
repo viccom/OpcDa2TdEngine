@@ -54,6 +54,7 @@ const isMqttConnected = ref(false); // 新增：MQTT连接状态
 const manualConnect = ref(false); // 新增：手动连接MQTT的状态
 
 const restartFlag = ref(false); // 新增：重启按钮的状态
+const inRestart = ref(false); // 新增：重启状态
 
 const paused = ref(false); // 新增：日志暂停状态
 const displayedLog = computed(() => {
@@ -100,16 +101,22 @@ function connectMqtt() {
   });
   mqttClient.value.on("close", () => {
     log("MQTT 连接已关闭");
+    overViewStatus.value.opcDaSub = null;
+    overViewStatus.value.tdEnginePub = null; 
     isMqttConnected.value = false;
     inputDisabled.value = false; // 关闭时启用输入框
   });
   mqttClient.value.on("offline", () => {
     log("MQTT 已离线");
+    overViewStatus.value.opcDaSub = null;
+    overViewStatus.value.tdEnginePub = null; 
     isMqttConnected.value = false;
     inputDisabled.value = false; // 离线时启用输入框
   });
   mqttClient.value.on("error", (err: any) => {
     log("MQTT 错误: " + (err?.message || err));
+    overViewStatus.value.opcDaSub = null;
+    overViewStatus.value.tdEnginePub = null; 
     isMqttConnected.value = false;
     inputDisabled.value = false; // 连接失败时启用输入框
   });
@@ -213,6 +220,7 @@ function handleRestart() {
           if (resp.result) {
             ElMessage.success(resp.message || "重启成功");
             restartFlag.value = false;
+            inRestart.value = false;
             rtDataList.value = []; // 清空实时数据列表
           } else {
             ElMessage.error(resp.message || "重启失败");
@@ -229,6 +237,7 @@ function handleRestart() {
   // 发送命令
   mqttClient.value.publish(topic, payload);
   ElMessage.info("重启命令已发送");
+  inRestart.value = true;
 }
 
 onMounted(() => {
@@ -384,6 +393,7 @@ watch(
             style="padding: 4px 12px; border: none; border-radius: 4px; cursor: pointer; height: 24px;"
             :icon="restartFlag ? WarnTriangleFilled : undefined"
             @click="handleRestart"
+            :disabled="inRestart"
           >重启</el-button>
         </div>
         <!-- 新增：Debug 模式开关 -->

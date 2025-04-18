@@ -11,10 +11,13 @@
     <div ref="tableWrapper" style="width: 99%;">
       <ElTableV2
         :columns="columns"
-        :data="filteredData"
+        :data="sortedData"
         :width="tableWidth"
         :height="500"
         style="border: 1px solid #ebeef5;"
+        :sort-by="sortBy"
+        :sort-direction="sortDirection"
+        @sort="handleSort"
       />
     </div>
   </div>
@@ -24,7 +27,6 @@
 import { ref, computed, onMounted, nextTick, inject, onBeforeUnmount, defineExpose } from 'vue';
 import { ElTableV2, ElMessage } from 'element-plus';
 import type { AnyColumn } from 'element-plus/es/components/table-v2/src/common';
-
 
 // 1. 删除模拟数据，定义表格数据结构
 type TagRow = {
@@ -57,12 +59,36 @@ const filteredData = computed(() =>
   )
 );
 
-// 4. el-table-v2 列定义
+// 排序相关逻辑
+const sortBy = ref('name'); // 默认第1列
+const sortDirection = ref<'ASC' | 'DESC'>('ASC');
+
+const handleSort = (params: { key: string; order: 'ASC' | 'DESC' }) => {
+  sortBy.value = params.key;
+  sortDirection.value = params.order;
+};
+
+const sortedData = computed(() => {
+  const arr = filteredData.value.slice();
+  if (!sortBy.value) return arr;
+  return arr.sort((a: any, b: any) => {
+    const valA = a[sortBy.value];
+    const valB = b[sortBy.value];
+    if (valA == null && valB == null) return 0;
+    if (valA == null) return sortDirection.value === 'ASC' ? -1 : 1;
+    if (valB == null) return sortDirection.value === 'ASC' ? 1 : -1;
+    if (valA < valB) return sortDirection.value === 'ASC' ? -1 : 1;
+    if (valA > valB) return sortDirection.value === 'ASC' ? 1 : -1;
+    return 0;
+  });
+});
+
+// 4. el-table-v2 列定义，增加 sortable 属性
 const columns: AnyColumn[] = [
-  { key: 'name', dataKey: 'name', title: '点名', minWidth: 120, width: 140, flexGrow: 1 },
-  { key: 'desc', dataKey: 'desc', title: '描述', minWidth: 120, width: 160, flexGrow: 1 },
-  { key: 'type', dataKey: 'type', title: '类型', minWidth: 80, width: 100, flexGrow: 1 },
-  { key: 'opc_item', dataKey: 'opc_item', title: 'OPC_item', minWidth: 180, width: 200, flexGrow: 2 }
+  { key: 'name', dataKey: 'name', title: '点名', minWidth: 120, width: 140, flexGrow: 1, sortable: true },
+  { key: 'desc', dataKey: 'desc', title: '描述', minWidth: 120, width: 160, flexGrow: 1, sortable: true },
+  { key: 'type', dataKey: 'type', title: '类型', minWidth: 80, width: 100, flexGrow: 1, sortable: true },
+  { key: 'opc_item', dataKey: 'opc_item', title: 'OPC_item', minWidth: 180, width: 200, flexGrow: 2, sortable: true }
 ];
 
 // 5. 动态获取容器宽度，传递给 :width
