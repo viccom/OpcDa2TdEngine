@@ -3,8 +3,8 @@
     <div class="tagslist-toolbar" style="width: 99%;">
       <el-input v-model="filterText" placeholder="输入关键字过滤" style="width: 300px;" />
       <div class="tagslist-toolbar-btns">
-        <el-button type="primary" @click="onLoadTags">加载点表</el-button>
         <el-button type="success" @click="onSaveTags">保存点表</el-button>
+        <el-button type="primary" @click="onLoadTags">加载点表</el-button>
         <el-button type="info" @click="onLoadCSV">加载CSV</el-button>
       </div>
     </div>
@@ -60,7 +60,7 @@ const filteredData = computed(() =>
 );
 
 // 排序相关逻辑
-const sortBy = ref('name'); // 默认第1列
+const sortBy = ref<any>('name'); // 修正类型为 any
 const sortDirection = ref<'ASC' | 'DESC'>('ASC');
 
 const handleSort = (params: { key: string; order: 'ASC' | 'DESC' }) => {

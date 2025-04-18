@@ -27,7 +27,6 @@ declare global {
 import { ref, computed, onMounted, onBeforeUnmount, nextTick, inject } from 'vue';
 import { ElTableV2 } from 'element-plus';
 import type { AnyColumn } from 'element-plus/es/components/table-v2/src/common';
-import type { SortBy } from 'element-plus/es/components/table-v2/src/types';
 
 // 通过 inject 获取全局 rtDataList，增加默认值
 const rtDataList = inject<any>('rtDataList', ref([]));
@@ -42,7 +41,7 @@ const filteredData = computed(() =>
 );
 
 // 排序相关逻辑
-const sortBy = ref('key'); // 默认第1列key
+const sortBy = ref<any>('key'); // 修正类型为 any
 const sortDirection = ref<'ASC' | 'DESC'>('ASC');
 
 const handleSort = (params: { key: string; order: 'ASC' | 'DESC' }) => {

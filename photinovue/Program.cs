@@ -2,10 +2,10 @@ using System.Drawing;
 using System.Text;
 using Photino.NET;
 using Photino.NET.Server;
-using System.Windows.Forms; // 添加此行
 using System.Runtime.InteropServices; // 新增
 
 namespace Photino.HelloPhotino.Vue;
+
 
 //NOTE: To hide the console window, go to the project properties and change the Output Type to Windows Application.
 // Or edit the .csproj file and change the <OutputType> tag from "WinExe" to "Exe".
@@ -21,6 +21,7 @@ internal class Program
     [STAThread]
     private static void Main(string[] args)
     {
+        
         // 新增：设置为每监视器DPI感知
         try { SetProcessDpiAwareness(2); } catch { /* 已经设置或不支持时忽略 */ }
 
@@ -70,11 +71,12 @@ internal class Program
             .RegisterWebMessageReceivedHandler((sender, message) =>
             {
                 var window = (PhotinoWindow)sender;
-                var response = $"Received message: \"{message}\"";
+                var response = $"Received : \"{message}\"";
                 window.SendWebMessage(response);
             })
             .Load(appUrl);
 
         window.WaitForClose();
+        window.SendWebMessage("C# 初始化完成！");
     }
 }

@@ -5,7 +5,9 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vue-tsc -b && vite build",
+    "xbuild": "vue-tsc -b && vite build",
+    "build": "vite build",
+    "build:force": "set NODE_OPTIONS=--max-old-space-size=8192 && vite build --force",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit"
   },

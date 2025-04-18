@@ -79,6 +79,19 @@ function randomReqId() {
 }
 
 function saveConfig() {
+  // 校验所有表单项不能为空
+  if (
+    !opcHost.value.trim() ||
+    !opcProgId.value.trim() ||
+    !tdHost.value.trim() ||
+    !tdPort.value.trim() ||
+    !tdDbName.value.trim() ||
+    !tdUsername.value.trim() ||
+    !tdPassword.value.trim()
+  ) {
+    ElMessage.error('所有配置项都不能为空！');
+    return;
+  }
   if (!mqttClient || !mqttClient.value) {
     ElMessage.error('mqttClient 未连接，请检查连接状态！');
     return;

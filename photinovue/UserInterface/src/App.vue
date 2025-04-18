@@ -10,6 +10,32 @@ import { ElSwitch, ElMessage } from "element-plus"; // 引入 ElMessage
 import "element-plus/dist/index.css"; // 确保引入样式
 import { WarnTriangleFilled } from '@element-plus/icons-vue'; // 引入 Search 图标
 
+
+const inputMsg = ref<string>(""); 
+// 发送消息到 C#
+const sendCSharp = () => {
+  const message = JSON.stringify({
+    type: inputMsg.value,
+    action: "start",
+    payload: "hello"
+  });
+  if (window.external) {
+    window.external.sendMessage(message);
+  } else {
+    console.error("Photino API 不可用");
+  }
+};
+
+
+// 监听 C# 的消息
+onMounted(() => {
+  if (window.external) {
+    window.external.receiveMessage((message) => {
+      inputMsg.value = `C# 说: ${message}`;
+    });
+  }
+});
+
 // MQTT 全局连接
 const mqttClient = ref<any>(null);
 let checkTimer: any = null;
@@ -360,7 +386,7 @@ watch(
 <template>
   <div class="app-container">
     <header class="app-header">
-      <div class="header-content" style="display: flex; align-items: left; height: 60px;">
+      <div class="header-content" style="display: flex; align-items: flex-start; height: 60px;">
         <!-- 新增：水平排列的功能组件 -->
         <div style="display: flex; align-items: center; margin-left: 20px; height: 100%;">
           <label style="margin-right: 10px;">本地服务：</label>
@@ -396,6 +422,19 @@ watch(
             :disabled="inRestart"
           >重启</el-button>
         </div>
+
+        <div style="display: flex; align-items: center; margin-left: 20px; height: 100%;">
+          <el-input v-model="inputMsg" 
+                    placeholder="C# 消息" 
+                    style="margin-left: 20px; padding: 4px; border: 1px solid #ccc; border-radius: 4px; height: 24px;" 
+          />
+          <el-button
+            type="primary"
+            style="padding: 4px 12px; border: none; border-radius: 4px; cursor: pointer; height: 24px;"
+            @click="sendCSharp"
+          >触发</el-button>
+        </div>
+
         <!-- 新增：Debug 模式开关 -->
         <div style="display: flex; align-items: center; margin-left: 20px; height: 100%;">
           <label style="margin-left: 20px">
