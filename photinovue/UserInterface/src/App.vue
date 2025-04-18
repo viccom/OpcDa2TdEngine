@@ -47,6 +47,7 @@ let messageRegistered = false;
 let clientid = "WEB_" + Math.random().toString(16).substr(2, 8);
 
 const mqttHost = ref("127.0.0.1"); // 新增：节点IP输入框的绑定变量
+const inputDisabled = ref(false); // 新增：输入框禁用状态
 
 const isMqttConnected = ref(false); // 新增：MQTT连接状态
 
@@ -88,6 +89,7 @@ function connectMqtt() {
   mqttClient.value.on("connect", () => {
     log("MQTT 已连接");
     isMqttConnected.value = true;
+    inputDisabled.value = true; // 连接成功后禁用输入框
     mqttClient.value.subscribe("/opcda/data");
     mqttClient.value.subscribe("/status/apps");
     log("已订阅 /opcda/data 和 /status/apps");
@@ -99,14 +101,17 @@ function connectMqtt() {
   mqttClient.value.on("close", () => {
     log("MQTT 连接已关闭");
     isMqttConnected.value = false;
+    inputDisabled.value = false; // 关闭时启用输入框
   });
   mqttClient.value.on("offline", () => {
     log("MQTT 已离线");
     isMqttConnected.value = false;
+    inputDisabled.value = false; // 离线时启用输入框
   });
   mqttClient.value.on("error", (err: any) => {
     log("MQTT 错误: " + (err?.message || err));
     isMqttConnected.value = false;
+    inputDisabled.value = false; // 连接失败时启用输入框
   });
 
   if (!messageRegistered) {
@@ -145,6 +150,7 @@ function connectMqtt() {
       }
     });
     messageRegistered = true;
+
   }
 }
 
@@ -158,6 +164,7 @@ function disconnectMqtt() {
     messageRegistered = false;
     overViewStatus.value.opcDaSub = null;
     overViewStatus.value.tdEnginePub = null; 
+    inputDisabled.value = false;
   }
 }
 
@@ -206,6 +213,7 @@ function handleRestart() {
           if (resp.result) {
             ElMessage.success(resp.message || "重启成功");
             restartFlag.value = false;
+            rtDataList.value = []; // 清空实时数据列表
           } else {
             ElMessage.error(resp.message || "重启失败");
           }
@@ -360,7 +368,8 @@ watch(
             <input
             style="margin-right: 10px; padding: 4px; border: 1px solid #ccc; border-radius: 4px; height: 24px;"
             placeholder="请输入节点IP"
-            v-model="mqttHost" value="127.0.0.1"
+            v-model="mqttHost" 
+            :disabled="inputDisabled"
             />
           <el-button
             :type="isMqttConnected ? 'danger' : 'primary'"

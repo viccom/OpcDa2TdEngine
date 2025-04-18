@@ -25,6 +25,7 @@ import { ref, computed, onMounted, nextTick, inject, onBeforeUnmount, defineExpo
 import { ElTableV2, ElMessage } from 'element-plus';
 import type { AnyColumn } from 'element-plus/es/components/table-v2/src/common';
 
+
 // 1. 删除模拟数据，定义表格数据结构
 type TagRow = {
   name: string;
@@ -215,37 +216,49 @@ function onSaveTags() {
   mqttClient.value.publish(topicCmd, payload);
 }
 
+
 function onLoadCSV() {
-  // 创建一个隐藏的文件输入框
   const input = document.createElement('input');
   input.type = 'file';
   input.accept = '.csv,text/csv';
   input.style.display = 'none';
   document.body.appendChild(input);
-
-  input.onchange = (event: any) => {
-    const file = event.target.files[0];
+  input.onchange = async (event: Event) => {
+    const file = (event.target as HTMLInputElement).files?.[0];
     if (!file) {
       document.body.removeChild(input);
       return;
     }
     const reader = new FileReader();
-    reader.onload = (e) => {
-      const text = e.target?.result as string;
-      if (!text) {
+    reader.onload = async (e) => {
+      const buffer = e.target?.result as ArrayBuffer;
+      if (!buffer) {
         document.body.removeChild(input);
         return;
       }
-      // 解析CSV
+      // 尝试 UTF-8 解码
+      let text = new TextDecoder('utf-8').decode(buffer);
+      
+      // 如果 UTF-8 解码失败（乱码），尝试 GBK
+      if (isGarbled(text)) {
+        try {
+          const gbkDecoder = new TextDecoder('gbk');
+          text = gbkDecoder.decode(buffer);
+        } catch (err) {
+          ElMessage.error('无法解码 GBK 格式文件');
+          document.body.removeChild(input);
+          return;
+        }
+      }
+      // 解析 CSV
       const lines = text.split(/\r?\n/).map(line => line.trim()).filter(line => line.length > 0);
       if (lines.length < 2) {
         ElMessage.warning('CSV内容为空或无有效数据');
         document.body.removeChild(input);
         return;
       }
-      // 第一行为表头，后面为数据
-      const header = lines[0].split(',').map(h => h.trim());
       // 检查表头
+      const header = lines[0].split(',').map(h => h.trim());
       if (
         header.length < 4 ||
         header[0] !== '点名' ||
@@ -257,9 +270,8 @@ function onLoadCSV() {
         document.body.removeChild(input);
         return;
       }
-      // 清空表格
-      data.value = [];
       // 解析数据
+      data.value = [];
       for (let i = 1; i < lines.length; i++) {
         const row = lines[i].split(',').map(cell => cell.trim());
         if (row.length < 4) continue;
@@ -273,11 +285,17 @@ function onLoadCSV() {
       ElMessage.success('CSV加载成功');
       document.body.removeChild(input);
     };
-    reader.readAsText(file, 'utf-8');
+    // 以 ArrayBuffer 形式读取文件
+    reader.readAsArrayBuffer(file);
   };
-
   input.click();
 }
+/** 检测文本是否乱码 */
+function isGarbled(text: string): boolean {
+  // 简单逻辑：如果包含大量 � 或非法字符，可能是 GBK
+  return text.includes('�') || /[^\u0000-\uFFFF]/.test(text);
+}
+
 
 // 提供给父组件获取表格数据
 function getTableData() {
