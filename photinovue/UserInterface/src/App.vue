@@ -6,7 +6,7 @@ import RtData from "./components/RtData.vue";
 import TagsList from "./components/TagsList.vue";
 import Configuration from "./components/Configuration.vue";
 import LogView from "./components/LogView.vue";
-import { ElSwitch } from "element-plus"; // 确保引入 ElSwitch 组件
+import { ElSwitch, ElMessage } from "element-plus"; // 引入 ElMessage
 import "element-plus/dist/index.css"; // 确保引入样式
 import { WarnTriangleFilled } from '@element-plus/icons-vue'; // 引入 Search 图标
 
@@ -51,6 +51,8 @@ const mqttHost = ref("127.0.0.1"); // 新增：节点IP输入框的绑定变量
 const isMqttConnected = ref(false); // 新增：MQTT连接状态
 
 const manualConnect = ref(false); // 新增：手动连接MQTT的状态
+
+const restartFlag = ref(false); // 新增：重启按钮的状态
 
 const paused = ref(false); // 新增：日志暂停状态
 const displayedLog = computed(() => {
@@ -170,6 +172,57 @@ function handleMqttButton() {
   }
 }
 
+// 新增：重启按钮逻辑
+function randomReqId() {
+  return "web" + Math.floor(Math.random() * 1000000);
+}
+
+function handleRestart() {
+  if (!mqttClient.value || !isMqttConnected.value) {
+    ElMessage.warning("MQTT 未连接，无法发送重启命令");
+    return;
+  }
+  const reqid = randomReqId();
+  const topic = `client/${clientid}/command`;
+  const payload = JSON.stringify({
+    cmd: "set",
+    type: "restart",
+    data: "",
+    reqid
+  });
+  // 订阅响应主题
+  const respTopic = `client/${clientid}/response`;
+  mqttClient.value.subscribe(respTopic, (err: any) => {
+    if (err) {
+      ElMessage.error("订阅响应主题失败: " + err.message);
+    }
+  });
+  // 监听响应
+  const onResponse = (topicResp: string, message: Uint8Array) => {
+    if (topicResp === respTopic) {
+      try {
+        const resp = JSON.parse(message.toString());
+        if (resp.reqid === reqid) {
+          if (resp.result) {
+            ElMessage.success(resp.message || "重启成功");
+            restartFlag.value = false;
+          } else {
+            ElMessage.error(resp.message || "重启失败");
+          }
+          // 只处理一次，移除监听
+          mqttClient.value.off("message", onResponse);
+        }
+      } catch (e) {
+        // 忽略解析错误
+      }
+    }
+  };
+  mqttClient.value.on("message", onResponse);
+  // 发送命令
+  mqttClient.value.publish(topic, payload);
+  ElMessage.info("重启命令已发送");
+}
+
 onMounted(() => {
   connectMqtt();
   checkTimer = setInterval(() => {
@@ -202,6 +255,7 @@ provide("mqttClient", mqttClient);
 provide("rtDataList", rtDataList);
 provide("overViewStatus", overViewStatus);
 provide("appLog", appLog);
+provide('restartFlag', restartFlag); // 提供变量给子组件
 
 const tabs = [
   { name: "概览", key: "overview" },
@@ -309,13 +363,19 @@ watch(
             v-model="mqttHost" value="127.0.0.1"
             />
           <el-button
-            type="primary"
+            :type="isMqttConnected ? 'danger' : 'primary'"
             style="padding: 4px 12px; border: none; border-radius: 4px; cursor: pointer; height: 24px;"
             @click="handleMqttButton"
           >
             {{ isMqttConnected ? '断开' : '连接' }}
           </el-button>
-          <el-button  type="warning" style="padding: 4px 12px; border: none; border-radius: 4px; cursor: pointer; height: 24px;" :icon="WarnTriangleFilled">重启</el-button>
+
+          <el-button
+            type="warning"
+            style="padding: 4px 12px; border: none; border-radius: 4px; cursor: pointer; height: 24px;"
+            :icon="restartFlag ? WarnTriangleFilled : undefined"
+            @click="handleRestart"
+          >重启</el-button>
         </div>
         <!-- 新增：Debug 模式开关 -->
         <div style="display: flex; align-items: center; margin-left: 20px; height: 100%;">

@@ -34,6 +34,8 @@ type TagRow = {
 };
 const data = ref<TagRow[]>([]);
 
+// 获取全局 restartFlag
+const restartFlag = inject<{ value: boolean }>('restartFlag'); // 注入变量
 // 2. 获取全局 mqttClient
 const mqttClient = inject<any>('mqttClient');
 let mqttClientId = '';
@@ -194,7 +196,10 @@ function onSaveTags() {
         const resp = JSON.parse(message.toString());
         if (resp.reqid === reqid) {
           if (resp.result) {
-            ElMessage.success('点表保存成功！');
+            ElMessage.success('点表保存成功！需要重启后端服务才能生效！');
+            if (restartFlag) {
+              restartFlag.value = true;
+            }
           } else {
             ElMessage.error('点表保存失败: ' + (resp.message || '未知错误'));
           }

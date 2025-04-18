@@ -1,3 +1,52 @@
+<template>
+  <div class="configuration-container">
+
+    <!-- 使用 Flexbox 实现左右排列 -->
+    <div class="service-row">
+      <div class="service-status" style="margin-right: 20px;">
+        <h3>OPC DA 服务器：</h3>
+        <div class="input-row">
+          <label for="opc-host">Host：</label>
+          <input id="opc-host" v-model="opcHost" type="text" placeholder="localhost">
+        </div>
+        <div class="input-row">
+          <label for="opc-progid">ProgID：</label>
+          <input id="opc-progid" v-model="opcProgId" type="text">
+        </div>
+      </div>
+      <div class="service-status">
+        <h3>TDengine 数据库：</h3>
+        <div class="input-row">
+          <label for="td-host">Host：</label>
+          <input id="td-host" v-model="tdHost" type="text" placeholder="localhost">
+        </div>
+        <div class="input-row">
+          <label for="td-port">Port：</label>
+          <input id="td-port" v-model="tdPort" type="text">
+        </div>
+        <div class="input-row">
+          <label for="td-dbname">DbName：</label>
+          <input id="td-dbname" v-model="tdDbName" type="text">
+        </div>
+        <div class="input-row">
+          <label for="td-username">UserName：</label>
+          <input id="td-username" v-model="tdUsername" type="text">
+        </div>
+        <div class="input-row">
+          <label for="td-password">Password：</label>
+          <input id="td-password" v-model="tdPassword" type="password">
+        </div>
+      </div>
+    </div>
+
+    <!-- 按钮区域 -->
+    <div class="button-row">
+      <el-button type="success" @click="saveConfig">保存配置</el-button>
+      <el-button type="primary" @click="loadConfig">加载配置</el-button>
+    </div>
+  </div>
+</template>
+
 <script setup lang="ts">
 import { ref, inject, onMounted, onBeforeUnmount, defineExpose } from 'vue';
 import { ElMessage } from 'element-plus';
@@ -10,6 +59,9 @@ const tdDbName = ref('');
 const tdUsername = ref('');
 const tdPassword = ref('');
 
+import type { Ref } from 'vue';
+// 获取全局 restartFlag
+const restartFlag = inject<Ref<boolean>>('restartFlag'); // 注入变量
 // 获取全局 mqttClient
 const mqttClient = inject<any>('mqttClient');
 // 获取全局 mqttClientId（App.vue 里 clientid 生成后可挂到 window 或 provide）
@@ -71,7 +123,10 @@ function saveConfig() {
         const resp = JSON.parse(message.toString());
         if (resp.reqid === reqid) {
           if (resp.result) {
-            ElMessage.success('配置保存成功！');
+            ElMessage.success('配置保存成功！需要重启后端服务才能生效！');
+            if (restartFlag) {
+              restartFlag.value = true;
+            }
           } else {
             ElMessage.error('配置保存失败: ' + (resp.message || '未知错误'));
           }
@@ -190,54 +245,7 @@ onBeforeUnmount(() => {
 });
 </script>
 
-<template>
-  <div class="configuration-container">
 
-    <!-- 使用 Flexbox 实现左右排列 -->
-    <div class="service-row">
-      <div class="service-status" style="margin-right: 20px;">
-        <h3>OPC DA 服务器：</h3>
-        <div class="input-row">
-          <label for="opc-host">Host：</label>
-          <input id="opc-host" v-model="opcHost" type="text" placeholder="localhost">
-        </div>
-        <div class="input-row">
-          <label for="opc-progid">ProgID：</label>
-          <input id="opc-progid" v-model="opcProgId" type="text">
-        </div>
-      </div>
-      <div class="service-status">
-        <h3>TDengine 数据库：</h3>
-        <div class="input-row">
-          <label for="td-host">Host：</label>
-          <input id="td-host" v-model="tdHost" type="text" placeholder="localhost">
-        </div>
-        <div class="input-row">
-          <label for="td-port">Port：</label>
-          <input id="td-port" v-model="tdPort" type="text">
-        </div>
-        <div class="input-row">
-          <label for="td-dbname">DbName：</label>
-          <input id="td-dbname" v-model="tdDbName" type="text">
-        </div>
-        <div class="input-row">
-          <label for="td-username">UserName：</label>
-          <input id="td-username" v-model="tdUsername" type="text">
-        </div>
-        <div class="input-row">
-          <label for="td-password">Password：</label>
-          <input id="td-password" v-model="tdPassword" type="password">
-        </div>
-      </div>
-    </div>
-
-    <!-- 按钮区域 -->
-    <div class="button-row">
-      <button @click="saveConfig">保存配置</button>
-      <button @click="loadConfig">加载配置</button>
-    </div>
-  </div>
-</template>
 
 <style scoped>
 .configuration-container {
@@ -291,7 +299,6 @@ onBeforeUnmount(() => {
 
 .button-row button {
   padding: 10px 20px;
-  background-color: #4CAF50;
   color: white;
   border: none;
   cursor: pointer;
