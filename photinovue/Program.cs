@@ -2,7 +2,9 @@ using System.Drawing;
 using System.Text;
 using Photino.NET;
 using Photino.NET.Server;
-using System.Runtime.InteropServices; // 新增
+using System.Runtime.InteropServices; 
+using Newtonsoft.Json;
+using Photino.HelloPhotino.Vue.Handlers;
 
 namespace Photino.HelloPhotino.Vue;
 
@@ -71,8 +73,38 @@ internal class Program
             .RegisterWebMessageReceivedHandler((sender, message) =>
             {
                 var window = (PhotinoWindow)sender;
-                var response = $"Received : \"{message}\"";
-                window.SendWebMessage(response);
+
+                try
+                {
+                    var msgJson = JsonConvert.DeserializeObject<dynamic>(message);
+                    string type = msgJson.type;
+                    string action = msgJson.action;
+                    string payload = msgJson.payload;
+
+                    string response;
+                    if (type == "a")
+                    {
+                        // response = $"Command received: {payload}";
+                        response = MessageHandlers.HandleTypeA(msgJson);
+                    }
+                    else if (type == "b")
+                    {
+                        // response = $"Command received: {payload}";
+                        response = MessageHandlers.HandleTypeB(msgJson);
+                    }
+                    else
+                    {
+                        response = $"Unknown message: {message}";
+                        // response = MessageHandlers.HandleTypeA(message);
+                    }
+
+                    window.SendWebMessage(response);
+                }
+                catch (Exception ex)
+                {
+                    window.SendWebMessage($"Error parsing message: {ex.Message}");
+                }
+                
             })
             .Load(appUrl);
 
