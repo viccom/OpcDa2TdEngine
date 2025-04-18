@@ -27,7 +27,10 @@ function randomReqId() {
 }
 
 function saveConfig() {
-  if (!mqttClient || !mqttClient.value) return;
+  if (!mqttClient || !mqttClient.value) {
+    ElMessage.error('mqttClient 未连接，请检查连接状态！');
+    return;
+  }
   mqttClientId = (window as any).mqttClientId || mqttClient.value.options?.clientId || mqttClient.value.options?.clientid || '';
   if (!mqttClientId) {
     ElMessage.error('无法获取 MQTT ClientId');
@@ -88,7 +91,10 @@ function saveConfig() {
 
 function loadConfig() {
   console.log('[Configuration.vue] loadConfig 被调用');
-  if (!mqttClient || !mqttClient.value) return;
+  if (!mqttClient || !mqttClient.value) {
+    ElMessage.error('mqttClient 未连接，请检查连接状态！');
+    return;
+  }
   // 获取 clientid
   mqttClientId = (window as any).mqttClientId || mqttClient.value.options?.clientId || mqttClient.value.options?.clientid || '';
   if (!mqttClientId) {

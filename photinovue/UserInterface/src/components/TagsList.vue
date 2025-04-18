@@ -93,7 +93,10 @@ function randomReqId() {
 
 // 7. 加载点表
 function onLoadTags() {
-  if (!mqttClient || !mqttClient.value) return;
+  if (!mqttClient || !mqttClient.value) {
+    ElMessage.error('mqttClient 未连接，请检查连接状态！');
+    return;
+  }
   mqttClientId = (window as any).mqttClientId || mqttClient.value.options?.clientId || mqttClient.value.options?.clientid || '';
   if (!mqttClientId) {
     ElMessage.error('无法获取 MQTT ClientId');
@@ -148,7 +151,10 @@ function onLoadTags() {
 }
 
 function onSaveTags() {
-  if (!mqttClient || !mqttClient.value) return;
+  if (!mqttClient || !mqttClient.value) {
+    ElMessage.error('mqttClient 未连接，请检查连接状态！');
+    return;
+  }
   if (!data.value.length) {
     ElMessage.warning('表格数据为空，无法保存！');
     return;

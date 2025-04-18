@@ -11,6 +11,7 @@ declare module 'vue' {
     Configuration: typeof import('./src/components/Configuration.vue')['default']
     ElButton: typeof import('element-plus/es')['ElButton']
     ElInput: typeof import('element-plus/es')['ElInput']
+    ElSwitch: typeof import('element-plus/es')['ElSwitch']
     HelloWorld: typeof import('./src/components/HelloWorld.vue')['default']
     LogView: typeof import('./src/components/LogView.vue')['default']
     OverView: typeof import('./src/components/OverView.vue')['default']

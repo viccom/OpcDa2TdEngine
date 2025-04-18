@@ -6,6 +6,9 @@ import RtData from "./components/RtData.vue";
 import TagsList from "./components/TagsList.vue";
 import Configuration from "./components/Configuration.vue";
 import LogView from "./components/LogView.vue";
+import { ElSwitch } from "element-plus"; // 确保引入 ElSwitch 组件
+import "element-plus/dist/index.css"; // 确保引入样式
+import { WarnTriangleFilled } from '@element-plus/icons-vue'; // 引入 Search 图标
 
 // MQTT 全局连接
 const mqttClient = ref<any>(null);
@@ -22,6 +25,7 @@ const rtDataList = ref<
   }[]
 >([]);
 
+const ServiceInstall = ref(false); // 新增：本地服务开关
 // 新增：全局状态
 const overViewStatus = ref<{
   opcDaSub: boolean | null;
@@ -42,6 +46,17 @@ let messageRegistered = false;
 
 let clientid = "WEB_" + Math.random().toString(16).substr(2, 8);
 
+const mqttHost = ref("127.0.0.1"); // 新增：节点IP输入框的绑定变量
+
+const isMqttConnected = ref(false); // 新增：MQTT连接状态
+
+const manualConnect = ref(false); // 新增：手动连接MQTT的状态
+
+const paused = ref(false); // 新增：日志暂停状态
+const displayedLog = computed(() => {
+  return paused.value ? appLog.value.slice(0, appLog.value.length) : appLog.value;
+});
+
 function connectMqtt() {
   if (!window.mqtt) {
     log(
@@ -57,9 +72,11 @@ function connectMqtt() {
     mqttClient.value.end(true);
     mqttClient.value = null;
     messageRegistered = false;
+    isMqttConnected.value = false;
   }
   log("尝试连接 MQTT Broker...");
-  mqttClient.value = window.mqtt.connect("ws://localhost:6882/mqtt", {
+
+  mqttClient.value = window.mqtt.connect(`ws://${mqttHost.value || "localhost"}:6882/mqtt`, {
     reconnectPeriod: 5000,
     clientid,
     username: "admin",
@@ -68,21 +85,26 @@ function connectMqtt() {
 
   mqttClient.value.on("connect", () => {
     log("MQTT 已连接");
+    isMqttConnected.value = true;
     mqttClient.value.subscribe("/opcda/data");
     mqttClient.value.subscribe("/status/apps");
     log("已订阅 /opcda/data 和 /status/apps");
   });
   mqttClient.value.on("reconnect", () => {
     log("MQTT 正在重连...");
+    isMqttConnected.value = false;
   });
   mqttClient.value.on("close", () => {
     log("MQTT 连接已关闭");
+    isMqttConnected.value = false;
   });
   mqttClient.value.on("offline", () => {
     log("MQTT 已离线");
+    isMqttConnected.value = false;
   });
   mqttClient.value.on("error", (err: any) => {
     log("MQTT 错误: " + (err?.message || err));
+    isMqttConnected.value = false;
   });
 
   if (!messageRegistered) {
@@ -124,11 +146,38 @@ function connectMqtt() {
   }
 }
 
+// 新增：断开MQTT连接
+function disconnectMqtt() {
+  if (mqttClient.value) {
+    log("手动断开 MQTT 连接");
+    mqttClient.value.end(true);
+    mqttClient.value = null;
+    isMqttConnected.value = false;
+    messageRegistered = false;
+    overViewStatus.value.opcDaSub = null;
+    overViewStatus.value.tdEnginePub = null; 
+  }
+}
+
+// 新增：按钮点击逻辑
+function handleMqttButton() {
+  if (isMqttConnected.value) {
+    disconnectMqtt();
+    manualConnect.value = true;
+  } else {
+    connectMqtt();
+    manualConnect.value = false;
+  }
+}
+
 onMounted(() => {
   connectMqtt();
   checkTimer = setInterval(() => {
-    if (!mqttClient.value || !mqttClient.value.connected) {
+    if (!mqttClient.value || !mqttClient.value.connected ) {
+      if (!manualConnect.value) {
+      isMqttConnected.value = false;
       connectMqtt();
+      }
     }
   }, 10000);
 
@@ -144,6 +193,7 @@ onBeforeUnmount(() => {
   if (mqttClient.value) {
     mqttClient.value.end();
     mqttClient.value = null;
+    isMqttConnected.value = false;
   }
 });
 
@@ -171,10 +221,10 @@ const prevTab = ref(activeTab.value);
 
 const debugMode = ref(false); // 新增：Debug 模式开关
 
-const paused = ref(false); // 新增：日志暂停状态
-const displayedLog = computed(() => {
-  return paused.value ? appLog.value.slice(0, appLog.value.length) : appLog.value;
-});
+// 测试 ServiceInstall 是否正常工作
+const testServiceInstall = () => {
+  console.log("ServiceInstall value:", ServiceInstall.value);
+};
 
 // 监听标签切换，处理本地缓存和自动加载
 watch(
@@ -211,7 +261,7 @@ watch(
           const parsed = JSON.parse(cache);
           configurationRef.value.setFormData(parsed);
           console.log('[App.vue] Configuration 激活，已加载本地缓存表单数据');
-        } catch {}
+        } catch { }
       }
     }
 
@@ -225,7 +275,7 @@ watch(
             tagsListRef.value.setTableData(parsed);
             console.log('[App.vue] TagsList 激活，已加载本地缓存表格数据');
           }
-        } catch {}
+        } catch { }
       }
     }
 
@@ -239,22 +289,46 @@ watch(
 <template>
   <div class="app-container">
     <header class="app-header">
-      <div class="header-content">
-        <span style="font-size: 2rem; font-weight: bold">应用头部</span>
+      <div class="header-content" style="display: flex; align-items: left; height: 60px;">
+        <!-- 新增：水平排列的功能组件 -->
+        <div style="display: flex; align-items: center; margin-left: 20px; height: 100%;">
+          <label style="margin-right: 10px;">本地服务：</label>
+          <el-switch 
+            style="padding: 4px 12px; height: 24px; --el-switch-on-color: #13ce66; --el-switch-off-color: #ff4949" 
+            v-model="ServiceInstall" 
+            @change="testServiceInstall" active-text="已安装" inactive-text="未安装" /> <!-- 添加测试方法 -->
+          <el-button style="padding: 4px 12px; background: #42b983; color: white; border: none; border-radius: 4px; cursor: pointer; height: 24px;">
+            启动
+          </el-button>
+        </div>
+        <div style="display: flex; align-items: center; margin-left: 20px; height: 100%;">
+          <label style="margin-right: 10px;">节点IP：</label>
+            <input
+            style="margin-right: 10px; padding: 4px; border: 1px solid #ccc; border-radius: 4px; height: 24px;"
+            placeholder="请输入节点IP"
+            v-model="mqttHost" value="127.0.0.1"
+            />
+          <el-button
+            type="primary"
+            style="padding: 4px 12px; border: none; border-radius: 4px; cursor: pointer; height: 24px;"
+            @click="handleMqttButton"
+          >
+            {{ isMqttConnected ? '断开' : '连接' }}
+          </el-button>
+          <el-button  type="warning" style="padding: 4px 12px; border: none; border-radius: 4px; cursor: pointer; height: 24px;" :icon="WarnTriangleFilled">重启</el-button>
+        </div>
         <!-- 新增：Debug 模式开关 -->
-        <label style="margin-left: 20px">
-          <input type="checkbox" v-model="debugMode" /> Debug 模式
-        </label>
+        <div style="display: flex; align-items: center; margin-left: 20px; height: 100%;">
+          <label style="margin-left: 20px">
+            <input type="checkbox" v-model="debugMode" /> Debug 模式
+          </label>
+        </div>
       </div>
     </header>
     <main class="app-main">
       <div class="tabs">
-        <div
-          v-for="tab in tabs"
-          :key="tab.key"
-          :class="['tab', { active: activeTab === tab.key }]"
-          @click="activeTab = tab.key"
-        >
+        <div v-for="tab in tabs" :key="tab.key" :class="['tab', { active: activeTab === tab.key }]"
+          @click="activeTab = tab.key">
           {{ tab.name }}
         </div>
       </div>
@@ -267,17 +341,14 @@ watch(
         <!-- 全局日志面板，受 debugMode 控制 -->
 
         <div v-if="debugMode">
-            <div style="display: flex; align-items: center;">
+          <div style="display: flex; align-items: center;">
             <div style="margin-left: 10px; font-weight: bold">[消息日志]</div>
-            <button
-              style="margin-left: 12px; padding: 2px 10px; font-size: 12px; cursor: pointer;"
-              @click="appLog = []"
-            >
+            <button style="margin-left: 12px; padding: 2px 10px; font-size: 12px; cursor: pointer;"
+              @click="appLog = []">
               清空
             </button>
-            </div>
-          <div
-            style="
+          </div>
+          <div style="
               margin-top: 0px;
               max-height: 200px;
               overflow: auto;
@@ -285,15 +356,10 @@ watch(
               border: 1px solid #eee;
               padding: 8px;
               font-size: 12px;
-            "
-          >
+            ">
 
-            <div
-              ref="logPanel"
-              v-for="(line, idx) in displayedLog"
-              :key="idx"
-              style="white-space: pre-wrap; word-break: break-all;"
-            >
+            <div ref="logPanel" v-for="(line, idx) in displayedLog" :key="idx"
+              style="white-space: pre-wrap; word-break: break-all;">
               {{ line }}
             </div>
           </div>
@@ -316,13 +382,14 @@ watch(
   background: #f5f7fa;
   display: flex;
   align-items: center;
-  justify-content: center;
+  justify-content: flex-start; /* 修改为靠左对齐 */
   border-bottom: 1px solid #e0e0e0;
 }
 
 .header-content {
-  width: 100%;
-  text-align: center;
+  display: flex;
+  align-items: center;
+  height: 60px; /* 统一高度 */
 }
 
 .app-main {
