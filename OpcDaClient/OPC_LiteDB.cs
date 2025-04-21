@@ -216,6 +216,7 @@ namespace OpcDaClient
 
         private void OnTransactionCompleted(object group, object hReq, ItemValueResult[] items)
         {
+            Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff}] 收到数据变化通知{items.GetLength(0)}条");
             var dataMap = new Dictionary<string, ItemValueResult>();
 
             for (int i = 0; i < items.GetLength(0); i++)

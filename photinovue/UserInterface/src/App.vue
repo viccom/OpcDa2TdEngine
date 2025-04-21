@@ -16,8 +16,7 @@ const inputMsg = ref<string>("");
 const sendCSharp = () => {
   const message = JSON.stringify({
     type: inputMsg.value,
-    action: "start",
-    payload: "hello"
+    reqid: "GUI-" + Math.random().toString(36).substr(2, 9),
   });
   if (window.external) {
     window.external.sendMessage(message);
@@ -30,8 +29,41 @@ const sendCSharp = () => {
 // 监听 C# 的消息
 onMounted(() => {
   if (window.external) {
-    window.external.receiveMessage((message) => {
-      inputMsg.value = `C# 说: ${message}`;
+    window.external.receiveMessage((response) => {
+      try {
+        // 添加调试信息，确保 response 的原始值被记录
+        console.log("原始响应:", response);
+
+        // 确保 response 是对象类型
+        let parsedResponse;
+        if (typeof response === "string") {
+          console.log("response为字符串:");
+          parsedResponse = JSON.parse(response);
+        } else {
+          console.log("response为对象:");
+          parsedResponse = response;
+        }
+
+        // 打印解析后的响应
+        console.log("解析后的响应:", parsedResponse);
+
+        // 检查 parsedResponse 是否包含 result 属性
+        if (parsedResponse && parsedResponse.result !== undefined) {
+          // 更新UI显示，增强对 payload 的处理
+          const serviceStatus = parsedResponse.payload;
+          const statusMessages = Object.entries(serviceStatus)
+            .map(([serviceName, isRunning]) => `${serviceName}: ${isRunning ? "运行中" : "未运行"}`)
+            .join(", ");
+          inputMsg.value = `服务状态: ${statusMessages}`;
+        } else {
+          console.error("C# 返回错误:", parsedResponse?.result);
+          console.log("服务状态查询结果:", JSON.stringify(parsedResponse?.payload));
+          inputMsg.value = `错误: ${JSON.stringify(parsedResponse?.payload, null, 2)}`;
+        }
+      } catch (e) {
+        console.error("解析C#消息失败:", e, "原始消息:", response);
+        inputMsg.value = `非法响应格式: ${response}`;
+      }
     });
   }
 });
@@ -425,7 +457,7 @@ watch(
 
         <div style="display: flex; align-items: center; margin-left: 20px; height: 100%;">
           <el-input v-model="inputMsg" 
-                    placeholder="C# 消息" 
+                    placeholder="后端消息" 
                     style="margin-left: 20px; padding: 4px; border: 1px solid #ccc; border-radius: 4px; height: 24px;" 
           />
           <el-button

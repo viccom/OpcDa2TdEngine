@@ -9,7 +9,7 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "OPCDAClient_GUI", "OPCDACli
 EndProject
 Project("{54A90642-561A-4BB1-A94E-469ADEE60C69}") = "opcdaclient_web", "OpcDaClient_WEB\opcdaclient_web.esproj", "{CB4B00AB-C9AB-C644-0310-21A33C3E9C87}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "HelloPhotino.Vue", "photinovue\HelloPhotino.Vue.csproj", "{AA9D1DC4-E031-4EC9-9AA2-AB9E62788E6A}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PhotinoGUI.Vue", "photinovue\PhotinoGUI.Vue.csproj", "{AA9D1DC4-E031-4EC9-9AA2-AB9E62788E6A}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "APhotino.Vue", "APhotinoApp\APhotino.Vue.csproj", "{B618360F-5867-4EE7-86E7-A62E17FC33A6}"
 EndProject

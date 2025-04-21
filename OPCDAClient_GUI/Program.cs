@@ -5,7 +5,7 @@ static class Program
     [STAThread]
     static void Main()
     {
-        // 这是.NET Framework 4.7.2推荐的方式
+        // NET Framework 4.7.2
         Application.SetHighDpiMode(HighDpiMode.PerMonitorV2);
         Application.EnableVisualStyles();
         Application.SetCompatibleTextRenderingDefault(false);

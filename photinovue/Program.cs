@@ -33,7 +33,8 @@ internal class Program
 
         // The appUrl is set to the local development server when in debug mode.
         // This helps with hot reloading and debugging.
-        var appUrl = IsDebugMode ? "http://localhost:5173" : $"{baseUrl}/index.html";
+        // var appUrl = IsDebugMode ? "http://localhost:5173" : $"{baseUrl}/index.html";
+        var appUrl = $"{baseUrl}/index.html";
         Console.WriteLine($"Serving Vue app at {appUrl}");
 
         // 获取主屏幕分辨率和DPI缩放比例，自适应窗口大小
@@ -73,30 +74,25 @@ internal class Program
             .RegisterWebMessageReceivedHandler((sender, message) =>
             {
                 var window = (PhotinoWindow)sender;
+                Console.WriteLine($"1.收到前端消息: {message}");
 
                 try
                 {
                     var msgJson = JsonConvert.DeserializeObject<dynamic>(message);
                     string type = msgJson.type;
-                    string action = msgJson.action;
-                    string payload = msgJson.payload;
+                    string reqid = msgJson.reqid;
 
-                    string response;
-                    if (type == "a")
+                    string response = type switch
                     {
-                        // response = $"Command received: {payload}";
-                        response = MessageHandlers.HandleTypeA(msgJson);
-                    }
-                    else if (type == "b")
-                    {
-                        // response = $"Command received: {payload}";
-                        response = MessageHandlers.HandleTypeB(msgJson);
-                    }
-                    else
-                    {
-                        response = $"Unknown message: {message}";
-                        // response = MessageHandlers.HandleTypeA(message);
-                    }
+                        "isInstall" => MessageHandlers.InstallStatus(msgJson),
+                        "isRun" => MessageHandlers.ServiceStatus(msgJson),
+                        "start" => MessageHandlers.HandleStart(msgJson),
+                        "stop" => MessageHandlers.HandleStop(msgJson),
+                        "install" => MessageHandlers.HandleInstall(msgJson),
+                        "uninstall" => MessageHandlers.HandleUninstall(msgJson),
+                        _ => $"Unknown message: {message}"
+                    };
+                    Console.WriteLine($"Sending response: {response}");
 
                     window.SendWebMessage(response);
                 }
@@ -104,11 +100,10 @@ internal class Program
                 {
                     window.SendWebMessage($"Error parsing message: {ex.Message}");
                 }
-                
             })
             .Load(appUrl);
 
         window.WaitForClose();
-        window.SendWebMessage("C# 初始化完成！");
+        
     }
 }

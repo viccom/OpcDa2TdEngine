@@ -187,17 +187,24 @@ namespace OpcDaClient
                                     if (insertSegments.Count > 0)
                                     {
                                         // 正确的TDengine多子表插入语法
-                                        string sql = "INSERT INTO " + string.Join(", ", insertSegments) + ";";
-                                        // Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] 执行SQL: {sql}");
-        
-                                        try
+                                        int batchSize = 1000;
+                                        for (int i = 0; i < insertSegments.Count; i += batchSize)
                                         {
-                                            long affectedRows = client.Exec(sql);
-                                            Console.WriteLine($"成功写入 {affectedRows} 行数据到超级表 {superTable}");
-                                        }
-                                        catch (Exception ex)
-                                        {
-                                            Console.WriteLine($"[ERROR] 写入失败: {ex.Message}");
+                                            int endIndex = Math.Min(i + batchSize, insertSegments.Count);
+                                            List<string> batchSegments = insertSegments.GetRange(i, endIndex - i);
+
+                                            string sql = "INSERT INTO " + string.Join(", ", batchSegments) + ";";
+                                            // Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] 执行SQL: {sql}");
+
+                                            try
+                                            {
+                                                long affectedRows = client.Exec(sql);
+                                                Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff}] 成功写入 {affectedRows} 行数据到超级表 {superTable}");
+                                            }
+                                            catch (Exception ex)
+                                            {
+                                                Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff}] [ERROR] 写入失败: {ex.Message}");
+                                            }
                                         }
                                     }
                                 }
@@ -205,15 +212,15 @@ namespace OpcDaClient
                                 // 写数据库结束
                             }
                             // 缩短等待间隔并检查运行状态
-                            for (int i = 0; i < 10; i++)
+                            for (int i = 0; i < 5; i++)
                             {
                                 if (!_running) break;
-                                Thread.Sleep(5);
+                                Thread.Sleep(3);
                             }
                         }
                         catch (Exception ex)
                         {
-                            Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] 数据处理错误: {ex.Message}");
+                            Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss zzz}] 数据处理错误: {ex.Message}");
                             break; // 新增：跳出内层循环触发重连
                         }
                     }

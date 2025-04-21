@@ -1,9 +1,11 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 	<PropertyGroup>
 		<ApplicationManifest>app.manifest</ApplicationManifest>
+		<AssemblyName>PhotinoGUI.Vue</AssemblyName>
+		<RootNamespace>PhotinoGUI.Vue</RootNamespace>
 	</PropertyGroup>
 	<PropertyGroup>
-		<OutputType>WinExe</OutputType>
+		<OutputType>Exe</OutputType>
 		<TargetFramework>net8.0-windows</TargetFramework>
 		<UseWindowsForms>true</UseWindowsForms>
 		<Platforms>AnyCPU</Platforms>
@@ -20,6 +22,7 @@
 		<PackageReference Include="Photino.NET" Version="3.2.3" />
 		<PackageReference Include="Photino.NET.Server" Version="3.0.11" />
 		<PackageReference Include="System.Runtime.CompilerServices.Unsafe" Version="6.0.0" />
+		<PackageReference Include="System.ServiceProcess.ServiceController" Version="10.0.0-preview.3.25171.5" />
 	</ItemGroup>
 
 	<ItemGroup>
