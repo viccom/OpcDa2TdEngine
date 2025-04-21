@@ -3,9 +3,8 @@ using System.Collections.Generic;
 using System.Linq;
 using System.IO;
 using System.Threading;
-using System.Threading.Tasks;
 using Nett;
-using TDengine;
+using Opc.Da;
 using TDengine.Driver;
 using TDengine.Driver.Client;
 
@@ -25,7 +24,7 @@ namespace OpcDaClient
         private OPC_LiteDB.Config config;
 
         // 定义最大队列大小常量
-        private const int MaxQueueSize = 1000;
+        private const int MaxQueueSize = 100000;
 
         // 构造函数，接收一个OPCDA_Sub实例
         public TdEngine_Pub(OPC_LiteDB opcDaSub)
@@ -112,25 +111,21 @@ namespace OpcDaClient
                         throw;
                     }
 
-                    // 读取csv文件创建表结构
-                    var csvLines = File.ReadAllLines("items.csv");
-                    foreach (var line in csvLines.Skip(1))
+                    // 创建超级表
+                    var sTableList = new string[] {"bool", "int", "uint", "float", "double", "string"};
+                    foreach (var sTable in sTableList)
                     {
-                        var parts = line.Split(',');
-                        if (parts.Length >= 4)
+                        try
                         {
-                            var tableName = parts[0];
-                            var fieldType = parts[2].ToLower();
-
-                            using (var stmt = client.StmtInit())
-                            {
-                                var createTableSql = $"CREATE TABLE IF NOT EXISTS {config.TdEngine.Dbname}.{tableName} (ts TIMESTAMP, val {GetTdEngineType(fieldType)})";
-                                Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] 正在创建表: {config.TdEngine.Dbname}.{tableName} 使用SQL: {createTableSql}");
-                                //stmt.Prepare(createTableSql);
-                                //stmt.Exec();
-                                client.Exec(createTableSql);
-                                Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] 成功创建表: {config.TdEngine.Dbname}.{tableName}");
-                            }
+                            var sTableName = $"opc_{sTable}";
+                            // Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] 正在创建超级表: {config.TdEngine.Dbname}.{sTableName}");
+                            // Console.WriteLine($"CREATE STABLE IF NOT EXISTS {config.TdEngine.Dbname}.{sTableName} (ts TIMESTAMP, val {GetTdEngineType(sTable)}) TAGS (tagName BINARY(100))");
+                            client.Exec($"CREATE STABLE IF NOT EXISTS {config.TdEngine.Dbname}.{sTableName} (ts TIMESTAMP, val {GetTdEngineType(sTable)}) TAGS (tagName BINARY(100))");
+                            Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] 成功创建超级表: {config.TdEngine.Dbname}.{sTableName}");
+                        }
+                        catch (Exception ex)
+                        {
+                            Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] 警告: 创建超级表索引失败 - {ex.Message}");
                         }
                     }
 
@@ -149,35 +144,71 @@ namespace OpcDaClient
 
                                 // 增加运行状态检查
                                 if (!_running) break;
-
+                                
+                                //重构新的数据字典
+                                var newQueueMap = new Dictionary<string, List<ItemValueResult>>(); 
                                 foreach (var kvp in dataMap)
                                 {
-                                    var tableName = kvp.Key;
-                                    var item = kvp.Value;
-
-                                    try
+                                    string key = kvp.Value.DiagnosticInfo;
+                                    ItemValueResult value = kvp.Value;
+                                    if (newQueueMap.TryGetValue(key, out List<ItemValueResult> existingList))
                                     {
-                                        using (var stmt = client.StmtInit())
-                                        {
-                                            stmt.Prepare($"INSERT INTO {tableName} VALUES (?, ?)");
-                                            stmt.BindRow(new object[] { item.Timestamp, ConvertToTdEngineValue(item.Value) });
-                                            stmt.AddBatch();
-                                            stmt.Exec();
-                                        }
-                                        // Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] 正确: 插入数据到表{tableName}成功");
+                                        existingList.Add(value); // 添加到现有列表
                                     }
-                                    catch (Exception ex)
+                                    else
                                     {
-                                        Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] 错误: 插入数据到表{tableName}失败 - {ex.Message}\n数据: Timestamp={item.Timestamp}, Value={item.Value}");
+                                        newQueueMap.Add(key, new List<ItemValueResult> { value }); 
                                     }
                                 }
                                 
+                                // 写数据库开始
+                                // 对每张超级表生成单独的SQL语句进行插入
+                                foreach (var kv in newQueueMap)
+                                {
+                                    string superTable = "opc_" + kv.Key;
+                                    var groups = kv.Value.GroupBy(item => item.ItemPath);
+    
+                                    // 构造多子表插入语句
+                                    List<string> insertSegments = new List<string>();
+                                    foreach (var group in groups)
+                                    {
+                                        string childTable = group.Key;
+                                        List<string> rows = new List<string>();
+                                        foreach (var item in group)
+                                        {
+                                            long ts = (long)(item.Timestamp.ToUniversalTime() - new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc)).TotalMilliseconds;
+                                            object value = ConvertToTdEngineValue(item.Value);
+                                            rows.Add($"(\"{ts}\", {value})");
+                                        }
+                                        string segment = $"{childTable} USING {superTable} TAGS (\"{childTable}\") VALUES {string.Join(", ", rows)}";
+                                        insertSegments.Add(segment);
+                                    }
+    
+                                    if (insertSegments.Count > 0)
+                                    {
+                                        // 正确的TDengine多子表插入语法
+                                        string sql = "INSERT INTO " + string.Join(", ", insertSegments) + ";";
+                                        // Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] 执行SQL: {sql}");
+        
+                                        try
+                                        {
+                                            long affectedRows = client.Exec(sql);
+                                            Console.WriteLine($"成功写入 {affectedRows} 行数据到超级表 {superTable}");
+                                        }
+                                        catch (Exception ex)
+                                        {
+                                            Console.WriteLine($"[ERROR] 写入失败: {ex.Message}");
+                                        }
+                                    }
+                                }
+
+                                // 写数据库结束
                             }
                             // 缩短等待间隔并检查运行状态
                             for (int i = 0; i < 10; i++)
                             {
                                 if (!_running) break;
-                                Thread.Sleep(10);
+                                Thread.Sleep(5);
                             }
                         }
                         catch (Exception ex)
@@ -208,6 +239,9 @@ namespace OpcDaClient
             {
                 case "bool": return "BOOL";
                 case "int": return "INT";
+                case "uint": return "INT UNSIGNED";
+                case "int64": return "BIGINT";
+                case "uint64": return "BIGINT UNSIGNED";
                 case "float": return "FLOAT";
                 case "double": return "DOUBLE";
                 case "string": return "BINARY(100)";

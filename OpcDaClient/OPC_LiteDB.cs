@@ -5,7 +5,6 @@ using System.IO;
 using System.Threading;
 using System.Collections.Concurrent;
 using System.Linq;
-using System.Text;
 using Nett;
 using Opc;
 using Opc.Da;
@@ -13,7 +12,6 @@ using LiteDB;
 using MQTTnet;
 using MQTTnet.Client;
 using MQTTnet.Client.Options;
-using MQTTnet.Protocol;
 using Newtonsoft.Json;
 
 namespace OpcDaClient
@@ -134,7 +132,7 @@ namespace OpcDaClient
                         _sync = true;
                         foreach (ItemValueResult value in syncValues)
                         {
-                            Console.WriteLine("同步读：ITEM：{0}，value：{1}，quality：{2}", value.ItemName, value.Value, value.Quality);
+                            Console.WriteLine("同步读：ITEM：{0}，value：{1}，quality：{2}, dateType：{3}", value.ItemName, value.Value, value.Quality, value.Value.GetType());
                         }
                         
                     }
@@ -228,11 +226,14 @@ namespace OpcDaClient
                     var parts = line.Split(',');
                     if (parts.Length >= 4 && parts[3] == items[i].ItemName)
                     {
+                        items[i].DiagnosticInfo = parts[2];
+                        items[i].ItemPath = parts[0];
                         dataMap[parts[0]] = items[i];
                         break;
                     }
                 }
             }
+
             //保存数据到队列
             if (_dataQueue.Count() < MAX_QUEUE_SIZE)
             {
