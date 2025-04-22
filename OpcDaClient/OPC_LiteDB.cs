@@ -13,6 +13,8 @@ using MQTTnet;
 using MQTTnet.Client;
 using MQTTnet.Client.Options;
 using Newtonsoft.Json;
+using OpcDaSubscription;
+using Serilog;
 
 namespace OpcDaClient
 {
@@ -28,6 +30,8 @@ namespace OpcDaClient
         private const int MAX_QUEUE_SIZE = 10000;
         private LiteDatabase _liteDb;
         private ILiteCollection<BsonDocument> _dataCollection;
+        private readonly ILogger _log;
+        
 
         public OPC_LiteDB()
         {
@@ -43,7 +47,9 @@ namespace OpcDaClient
             }
             _liteDb = new LiteDatabase(":memory:"); 
             _dataCollection = _liteDb.GetCollection<BsonDocument>("OpcData");
+            _log = Log.ForContext("Module", "OPCDA_Sub");
         }
+        
 
         public void Start()
         {
@@ -59,13 +65,15 @@ namespace OpcDaClient
                     }
                     catch
                     {
-                        await Task.Delay(5000);
+                        await Task.Delay(3000);
                     }
                 }
             }).Wait();
 
-            Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] 正在启动OPCDA_Sub线程...");
-            _opcThread = new Thread(StartOpcClient);
+            // Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] 正在启动OPCDA_Sub线程...");
+            _log.Information("正在启动OPCDA_Sub线程...");
+            mqLog.Info("OPCDA_Sub", "正在启动OPCDA_Sub线程...");
+            _opcThread = new Thread(() => StartOpcClient());
             _opcThread.Start();
         }
 
@@ -74,15 +82,21 @@ namespace OpcDaClient
             _running = false;
             if (_opcThread != null && _opcThread.IsAlive)
             {
+                _log.Information("正在读取配置文件config.toml...");
+                mqLog.Info("OPCDA_Sub", "正在读取配置文件config.toml...");
                 _opcThread.Join(2000);
             }
         }
 
         private void StartOpcClient()
         {
-            Console.WriteLine("正在读取配置文件config.toml...");
+            // Console.WriteLine("正在读取配置文件config.toml...");
+            _log.Information("正在读取配置文件config.toml...");
+            mqLog.Info("OPCDA_Sub", "正在读取配置文件config.toml...");
             var config = Toml.ReadFile<Config>("config.toml");
-            Console.WriteLine($"已加载配置文件: {Newtonsoft.Json.JsonConvert.SerializeObject(config)}");
+            // Console.WriteLine($"已加载配置文件: {Newtonsoft.Json.JsonConvert.SerializeObject(config)}");
+            _log.Information($"已加载配置文件: {Newtonsoft.Json.JsonConvert.SerializeObject(config)}");
+            mqLog.Info("OPCDA_Sub", $"已加载配置文件: {Newtonsoft.Json.JsonConvert.SerializeObject(config)}");
 
             if (config == null)
             {
@@ -92,14 +106,18 @@ namespace OpcDaClient
             {
                 throw new Exception("配置文件中缺少OpcDa配置节");
             }
-            Console.WriteLine($"OpcDa配置节: Host={config.OpcDa.Host}, ProgID={config.OpcDa.ProgID}");
+            // Console.WriteLine($"OpcDa配置节: Host={config.OpcDa.Host}, ProgID={config.OpcDa.ProgID}");
+            _log.Information($"OpcDa配置节: Host={config.OpcDa.Host}, ProgID={config.OpcDa.ProgID}");
+            mqLog.Info("OPCDA_Sub", $"OpcDa配置节: Host={config.OpcDa.Host}, ProgID={config.OpcDa.ProgID}");
             if (string.IsNullOrEmpty(config.OpcDa.Host) || string.IsNullOrEmpty(config.OpcDa.ProgID))
             {
                 throw new Exception("OpcDa配置节中缺少Host或ProgID");
             }
 
             var items = ReadItemsFromCsv("items.csv");
-            Console.WriteLine($"已加载{items.Length}个OPC项");
+            // Console.WriteLine($"已加载{items.Length}个OPC项");
+            _log.Information($"已加载{items.Length}个OPC项");
+            mqLog.Info("OPCDA_Sub", $"已加载{items.Length}个OPC项");
 
             int retryInterval = 5000;
             const int maxRetryInterval = 60000;
@@ -112,7 +130,9 @@ namespace OpcDaClient
                     OpcCom.Factory fact = new OpcCom.Factory();
                     var server = new Opc.Da.Server(fact, null);
                     server.Connect(url, new ConnectData(new System.Net.NetworkCredential()));
-                    Console.WriteLine("OPC服务器连接成功");
+                    // Console.WriteLine("OPC服务器连接成功");
+                    _log.Information("OPC服务器连接成功");
+                    mqLog.Info("OPCDA_Sub","OPC服务器连接成功");
 
                     SubscriptionState groupState = new SubscriptionState();
                     groupState.Name = "Group";
@@ -120,15 +140,21 @@ namespace OpcDaClient
                     groupState.UpdateRate = 1000;
                     groupState.Deadband = 0;
                     var group = (Subscription)server.CreateSubscription(groupState);
-                    Console.WriteLine("订阅组创建成功");
+                    // Console.WriteLine("订阅组创建成功");
+                    _log.Information("订阅组创建成功");
+                    mqLog.Info("OPCDA_Sub","订阅组创建成功");
 
                     items = group.AddItems(items);
-                    Console.WriteLine("OPC项添加成功");
+                    // Console.WriteLine("OPC项添加成功");
+                    _log.Information("OPC项添加成功");
+                    mqLog.Info("OPCDA_Sub","OPC项添加成功");
 
                     try
                     {
                         ItemValueResult[] syncValues = group.Read(group.Items);
-                        Console.WriteLine("同步读数据成功");
+                        // Console.WriteLine("同步读数据成功");
+                        _log.Information("同步读数据成功");
+                        mqLog.Info("OPCDA_Sub","同步读数据成功");
                         _sync = true;
                         foreach (ItemValueResult value in syncValues)
                         {
@@ -138,7 +164,9 @@ namespace OpcDaClient
                     }
                     catch (Exception ex)
                     {
-                        Console.WriteLine($"同步读数据失败: {ex.Message}");
+                        // Console.WriteLine($"同步读数据失败: {ex.Message}");
+                        _log.Error($"同步读数据失败: {ex.Message}");
+                        mqLog.Error("OPCDA_Sub",$"同步读数据失败: {ex.Message}");
                         throw;
                     }
 
@@ -147,11 +175,15 @@ namespace OpcDaClient
                         IRequest quest = null;
                         group.Read(group.Items, 1, this.AsyncReadComplete, out quest);
                         _async = true;
-                        Console.WriteLine("异步读数据成功");
+                        // Console.WriteLine("异步读数据成功");
+                        _log.Information("异步读数据成功");
+                        mqLog.Info("OPCDA_Sub","异步读数据成功");
                     }
                     catch (Exception ex)
                     {
-                        Console.WriteLine($"异步读数据失败: {ex.Message}");
+                        // Console.WriteLine($"异步读数据失败: {ex.Message}");
+                        _log.Information($"异步读数据失败: {ex.Message}");
+                        mqLog.Error("OPCDA_Sub", $"异步读数据失败: {ex.Message}");
                     }
 
                     if (_async)
@@ -160,7 +192,9 @@ namespace OpcDaClient
                     }
                     else
                     {
-                        Console.WriteLine("异步读不可用");
+                        // Console.WriteLine("异步读不可用");
+                        _log.Error("异步读不可用");
+                        mqLog.Error("OPCDA_Sub", "异步读不可用");
                     }
                     
                     while (_running)
@@ -176,7 +210,9 @@ namespace OpcDaClient
                 }
                 catch (Exception ex)
                 {
-                    Console.WriteLine($"连接或订阅失败，将在{retryInterval}毫秒后重试: {ex.Message}");
+                    // Console.WriteLine($"连接或订阅失败，将在{retryInterval}毫秒后重试: {ex.Message}");
+                    _log.Error($"连接或订阅失败，将在{retryInterval}毫秒后重试: {ex.Message}");
+                    mqLog.Error("OPCDA_Sub", $"连接或订阅失败，将在{retryInterval}毫秒后重试: {ex.Message}");
                     Thread.Sleep(retryInterval);
                     retryInterval = Math.Min(retryInterval * 2, maxRetryInterval);
                 }
@@ -208,15 +244,17 @@ namespace OpcDaClient
             {
                 Console.WriteLine("异步读：ITEM：{0}，value：{1}，quality：{2}", value.ItemName, value.Value, value.Quality);
             }
-            if ((int)requestHandle == 1)
-            {
-                Console.WriteLine("事件信号句柄为{0}", requestHandle);
-            }
+            // if ((int)requestHandle == 1)
+            // {
+            //     Console.WriteLine("事件信号句柄为{0}", requestHandle);
+            // }
         }
 
         private void OnTransactionCompleted(object group, object hReq, ItemValueResult[] items)
         {
-            Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff}] 收到数据变化通知{items.GetLength(0)}条");
+            // Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff}] 收到数据变化通知{items.GetLength(0)}条");
+            _log.Information($"收到数据变化通知{items.GetLength(0)}条");
+            mqLog.Info("OPCDA_Sub",$"收到数据变化通知{items.GetLength(0)}条");
             var dataMap = new Dictionary<string, ItemValueResult>();
 
             for (int i = 0; i < items.GetLength(0); i++)
@@ -257,15 +295,19 @@ namespace OpcDaClient
                     newMap[kvp.Key] = newData;
                 }
                 string mqttdata = JsonConvert.SerializeObject(newMap);
-                var message = new MqttApplicationMessageBuilder()
-                    .WithTopic("/opcda/data")
-                    .WithPayload(mqttdata)
-                    .Build();
-                _mqttClient.PublishAsync(message);
+                if (_mqttClient.IsConnected)
+                {
+                    var message = new MqttApplicationMessageBuilder()
+                        .WithTopic("/opcda/data")
+                        .WithPayload(mqttdata)
+                        .Build();
+                    _mqttClient.PublishAsync(message);
+                }
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"MQTT发布失败: {ex.Message}");
+                // Console.WriteLine($"MQTT发布失败: {ex.Message}");
+                _log.Error($"MQTT发布失败: {ex.Message}");
             }
 
             //保存数据到LiteDB

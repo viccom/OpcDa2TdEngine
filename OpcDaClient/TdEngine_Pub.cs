@@ -7,6 +7,7 @@ using Nett;
 using Opc.Da;
 using TDengine.Driver;
 using TDengine.Driver.Client;
+using Serilog;
 
 // 命名空间OpcDaClient内部的TdEngine_Pub类
 namespace OpcDaClient
@@ -25,20 +26,25 @@ namespace OpcDaClient
 
         // 定义最大队列大小常量
         private const int MaxQueueSize = 100000;
+        // 日志记录
+        private readonly ILogger _log;
 
         // 构造函数，接收一个OPCDA_Sub实例
         public TdEngine_Pub(OPC_LiteDB opcDaSub)
         {
             _opcDaSub = opcDaSub;
+            _log = Log.ForContext("Module", "TdEngine_Pub");
         }
 
         // 启动TDengine线程
         public void Start()
         {
-            Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] 正在启动TDengine线程...");
+            // Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] 正在启动TDengine线程...");
+            _log.Information("正在启动TDengine线程...");
+            mqLog.Info("TdEngine_Pub", "正在启动TDengine线程...");
             _tdThread = new Thread(StartTdEngineClient);
             _tdThread.Start();
-            Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] TDengine线程已启动，线程ID: {_tdThread.ManagedThreadId}");
+            // Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] TDengine线程已启动，线程ID: {_tdThread.ManagedThreadId}");
         }
 
         // 停止TDengine线程
@@ -54,7 +60,7 @@ namespace OpcDaClient
         // TDengine客户端启动方法
         private void StartTdEngineClient()
         {
-            Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] TDengine线程开始执行");
+            // Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] TDengine线程开始执行");
             TDengine.Driver.ITDengineClient client = null;
 
             // 新增：重试间隔配置
@@ -65,49 +71,68 @@ namespace OpcDaClient
             {
                 try
                 {
-                    Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] 正在读取TDengine配置文件...");
+                    // Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] 正在读取TDengine配置文件...");
+                    _log.Information("正在读取TDengine配置文件...");
+                    mqLog.Info("TdEngine_Pub", "正在读取TDengine配置文件...");
                     try
                     {
                         config = Toml.ReadFile<OPC_LiteDB.Config>("config.toml");
 
                         if (config?.TdEngine == null)
                         {
+                            _log.Error("配置文件中缺少TdEngine配置节");
                             throw new Exception("配置文件中缺少TdEngine配置节");
                         }
                     }
                     catch (Exception ex)
                     {
-                        Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] 错误: 读取配置文件失败 - {ex.Message}");
+                        // Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] 错误: 读取配置文件失败 - {ex.Message}");
+                        _log.Error($"读取配置文件失败 - {ex.Message}");
+                        mqLog.Error("TdEngine_Pub", $"读取配置文件失败 - {ex.Message}");
                         throw;
                     }
 
-                    Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] TDengine配置节: Host={config.TdEngine.Host}, Port={config.TdEngine.Port}, Dbname={config.TdEngine.Dbname}");
+                    // Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] TDengine配置节: Host={config.TdEngine.Host}, Port={config.TdEngine.Port}, Dbname={config.TdEngine.Dbname}");
+                    _log.Information($"TDengine配置节: Host={config.TdEngine.Host}, Port={config.TdEngine.Port}, Dbname={config.TdEngine.Dbname}");
+                    mqLog.Info("TdEngine_Pub", $"TDengine配置节: Host={config.TdEngine.Host}, Port={config.TdEngine.Port}, Dbname={config.TdEngine.Dbname}");
 
                     try
                     {
                         var connectionString = $"protocol=WebSocket;host={config.TdEngine.Host};port={config.TdEngine.Port};useSSL=false;username={config.TdEngine.Username};password={config.TdEngine.Password}";
-                        Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] 正在连接TDengine: {connectionString.Replace("password=" + config.TdEngine.Password, "password=******")}");
+                        // Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] 正在连接TDengine: {connectionString.Replace("password=" + config.TdEngine.Password, "password=******")}");
+                        _log.Information($"正在连接TDengine: {connectionString.Replace("password=" + config.TdEngine.Password, "password=******")}");
+                        mqLog.Info("TdEngine_Pub", $"正在连接TDengine: {connectionString.Replace("password=" + config.TdEngine.Password, "password=******")}");
                         var builder = new ConnectionStringBuilder(connectionString);
                         client = DbDriver.Open(builder);
-                        Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] 成功连接到TDengine");
+                        // Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] 成功连接到TDengine");
+                        _log.Information("成功连接到TDengine");
+                        mqLog.Info("TdEngine_Pub", "成功连接到TDengine");
                     }
                     catch (Exception ex)
                     {
-                        Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] 错误: 连接TDengine失败 - {ex.Message}");
+                        // Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] 错误: 连接TDengine失败 - {ex.Message}");
+                        _log.Information($"连接TDengine失败 - {ex.Message}");
+                        mqLog.Error("TdEngine_Pub", $"连接TDengine失败 - {ex.Message}");
                         throw;
                     }
 
                     // 检查并创建数据库
                     try
                     {
-                        Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] 正在创建数据库: {config.TdEngine.Dbname}");
+                        // Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] 正在创建数据库: {config.TdEngine.Dbname}");
+                        _log.Information($"正在创建数据库: {config.TdEngine.Dbname}");
+                        mqLog.Info("TdEngine_Pub", $"正在创建数据库: {config.TdEngine.Dbname}");
                         client.Exec($"CREATE DATABASE IF NOT EXISTS {config.TdEngine.Dbname}");
                         client.Exec($"USE {config.TdEngine.Dbname}");
-                        Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] 成功创建并使用数据库: {config.TdEngine.Dbname}");
+                        // Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] 成功创建并使用数据库: {config.TdEngine.Dbname}");
+                        _log.Information($"成功创建并使用数据库: {config.TdEngine.Dbname}");
+                        mqLog.Info("TdEngine_Pub", $"成功创建并使用数据库: {config.TdEngine.Dbname}");
                     }
                     catch (Exception ex)
                     {
-                        Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] 错误: 数据库操作失败 - {ex.Message}");
+                        // Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] 错误: 数据库操作失败 - {ex.Message}");
+                        _log.Information($"数据库创建失败 - {ex.Message}");
+                        mqLog.Error("TdEngine_Pub", $"数据库操作失败 - {ex.Message}");
                         throw;
                     }
 
@@ -121,11 +146,15 @@ namespace OpcDaClient
                             // Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] 正在创建超级表: {config.TdEngine.Dbname}.{sTableName}");
                             // Console.WriteLine($"CREATE STABLE IF NOT EXISTS {config.TdEngine.Dbname}.{sTableName} (ts TIMESTAMP, val {GetTdEngineType(sTable)}) TAGS (tagName BINARY(100))");
                             client.Exec($"CREATE STABLE IF NOT EXISTS {config.TdEngine.Dbname}.{sTableName} (ts TIMESTAMP, val {GetTdEngineType(sTable)}) TAGS (tagName BINARY(100))");
-                            Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] 成功创建超级表: {config.TdEngine.Dbname}.{sTableName}");
+                            // Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] 成功创建超级表: {config.TdEngine.Dbname}.{sTableName}");
+                            _log.Information($"成功创建超级表: {config.TdEngine.Dbname}.{sTableName}");
+                            mqLog.Info("TdEngine_Pub", $"成功创建超级表: {config.TdEngine.Dbname}.{sTableName}");
                         }
                         catch (Exception ex)
                         {
-                            Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] 警告: 创建超级表索引失败 - {ex.Message}");
+                            // Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] 警告: 创建超级表索引失败 - {ex.Message}");
+                            _log.Error($"创建超级表索引失败 - {ex.Message}");
+                            mqLog.Error("TdEngine_Pub", $"创建超级表索引失败 - {ex.Message}");
                         }
                     }
 
@@ -138,7 +167,8 @@ namespace OpcDaClient
                             {
                                 if (dataMap.Count > MaxQueueSize)
                                 {
-                                    Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] 警告: 数据队列大小({dataMap.Count})超过最大限制({MaxQueueSize})");
+                                    // Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] 警告: 数据队列大小({dataMap.Count})超过最大限制({MaxQueueSize})");
+                                    _log.Warning($"数据队列大小({dataMap.Count})超过最大限制({MaxQueueSize})");
                                     continue;
                                 }
 
@@ -199,11 +229,15 @@ namespace OpcDaClient
                                             try
                                             {
                                                 long affectedRows = client.Exec(sql);
-                                                Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff}] 成功写入 {affectedRows} 行数据到超级表 {superTable}");
+                                                // Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff}] 成功写入 {affectedRows} 行数据到超级表 {superTable}");
+                                                _log.Information($"成功写入 {affectedRows} 行数据到超级表 {superTable}");
+                                                mqLog.Info("TdEngine_Pub", $"成功写入 {affectedRows} 行数据到超级表 {superTable}");
                                             }
                                             catch (Exception ex)
                                             {
-                                                Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff}] [ERROR] 写入失败: {ex.Message}");
+                                                // Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff}] [ERROR] 写入失败: {ex.Message}");
+                                                _log.Error($"写入失败: {ex.Message}");
+                                                mqLog.Error("TdEngine_Pub", $"写入失败: {ex.Message}");
                                             }
                                         }
                                     }
@@ -220,14 +254,18 @@ namespace OpcDaClient
                         }
                         catch (Exception ex)
                         {
-                            Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss zzz}] 数据处理错误: {ex.Message}");
+                            // Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss zzz}] 数据处理错误: {ex.Message}");
+                            _log.Error($"数据处理错误: {ex.Message}");
+                            mqLog.Error("TdEngine_Pub", $"数据处理错误: {ex.Message}");
                             break; // 新增：跳出内层循环触发重连
                         }
                     }
                 }
                 catch (Exception ex)
                 {
-                    Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] 连接或配置错误: {ex.Message}");
+                    // Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] 连接或配置错误: {ex.Message}");
+                    _log.Error($"连接或配置错误: {ex.Message}");
+                    mqLog.Error("TdEngine_Pub", $"连接或配置错误: {ex.Message}");
                     Thread.Sleep(retryInterval); // 新增：指数退避
                     retryInterval = Math.Min(retryInterval * 2, maxRetryInterval); // 新增：指数退避
                 }

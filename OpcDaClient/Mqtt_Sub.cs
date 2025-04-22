@@ -10,6 +10,7 @@ using MQTTnet.Client.Options;
 using MQTTnet.Protocol;
 using Newtonsoft.Json;
 using OpcDaSubscription;
+using Serilog;
 
 namespace OpcDaClient
 {
@@ -18,10 +19,12 @@ namespace OpcDaClient
         private readonly IMqttClient _mqttClient;
         private readonly IMqttClientOptions _mqttOptions;
         private bool _running = true;
+        private readonly ILogger _log;
         
 
         public Mqtt_Sub()
         {
+            _log = Log.ForContext("Module", "Mqtt_Sub");
             _mqttOptions = new MqttClientOptionsBuilder()
                 .WithTcpServer("127.0.0.1", 6883)
                 .WithCredentials("admin", "123456")
@@ -30,11 +33,16 @@ namespace OpcDaClient
             
             _mqttClient.UseApplicationMessageReceivedHandler(e =>
             {
-                Console.WriteLine($"收到消息:\n" +
-                                  $"主题: {e.ApplicationMessage.Topic}\n" +
-                                  $"载荷: {Encoding.UTF8.GetString(e.ApplicationMessage.Payload)}\n" +
-                                  $"QoS: {e.ApplicationMessage.QualityOfServiceLevel}\n" +
-                                  $"保留标志: {e.ApplicationMessage.Retain}");
+                // Console.WriteLine($"收到消息:\n" +
+                                  // $"主题: {e.ApplicationMessage.Topic}\n" +
+                                  // $"载荷: {Encoding.UTF8.GetString(e.ApplicationMessage.Payload)}\n" +
+                                  // $"QoS: {e.ApplicationMessage.QualityOfServiceLevel}\n" +
+                                  // $"保留标志: {e.ApplicationMessage.Retain}");
+                _log.Information($"收到消息:\n" +
+                                 $"主题: {e.ApplicationMessage.Topic}\n" +
+                                 $"载荷: {Encoding.UTF8.GetString(e.ApplicationMessage.Payload)}\n" +
+                                 $"QoS: {e.ApplicationMessage.QualityOfServiceLevel}\n" +
+                                 $"保留标志: {e.ApplicationMessage.Retain}");
 
                 HandleMqttMessage(e.ApplicationMessage);
 
@@ -52,7 +60,8 @@ namespace OpcDaClient
                     {
                         await _mqttClient.ConnectAsync(_mqttOptions);
                         await _mqttClient.SubscribeAsync(new MqttTopicFilterBuilder().WithTopic("client/+/command").Build());
-                        Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] mqtt_Sub线程 已启动...");
+                        // Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] mqtt_Sub线程 已启动...");
+                        _log.Information("mqtt_Sub线程 已启动...");
                         break;
                     }
                     catch { await Task.Delay(3000); }
@@ -325,7 +334,8 @@ namespace OpcDaClient
                 catch (Exception ex)
                 {
                     // 记录错误行但继续处理
-                    Console.WriteLine($"解析行 {i+1} 时出错: {ex.Message}");
+                    // Console.WriteLine($"解析行 {i+1} 时出错: {ex.Message}");
+                    _log.Error($"解析行 {i+1} 时出错: {ex.Message}");
                 }
             }
             return items;
@@ -386,7 +396,8 @@ namespace OpcDaClient
             catch (Exception ex)
             {
                 // 捕获异常并记录错误信息
-                Console.WriteLine($"写入CSV文件时出错: {ex.Message}");
+                // Console.WriteLine($"写入CSV文件时出错: {ex.Message}");
+                _log.Error($"写入CSV文件时出错: {ex.Message}");
                 throw;
             }
         }
