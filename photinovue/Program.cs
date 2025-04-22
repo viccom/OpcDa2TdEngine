@@ -52,7 +52,7 @@ internal class Program
             // Fallback values if not running on Windows or reference missing
         }
         // 计算窗口宽高为屏幕分辨率的60%，但不小于1280x800
-        int windowWidth = Math.Max((int)(screenWidth * 0.6), minWidth);
+        int windowWidth = Math.Max((int)(screenWidth * 0.65), minWidth);
         int windowHeight = Math.Max((int)(screenHeight * 0.8), minHeight);
 
         // Window title declared here for visibility
@@ -92,7 +92,7 @@ internal class Program
                         "uninstall" => MessageHandlers.HandleUninstall(msgJson),
                         _ => $"Unknown message: {message}"
                     };
-                    Console.WriteLine($"Sending response: {response}");
+                    Console.WriteLine($"Sending response:\n {response}");
 
                     window.SendWebMessage(response);
                 }

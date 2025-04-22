@@ -38,7 +38,7 @@ namespace Photino.HelloPhotino.Vue.Handlers
             var response = new
             {
                 result = result,
-                message = "查询成功",
+                type = type,
                 payload = serviceStatus,
                 reqid = reqid
             };
@@ -74,7 +74,7 @@ namespace Photino.HelloPhotino.Vue.Handlers
             var response = new
             {
                 result = result,
-                message = "查询成功",
+                type = type,
                 payload = serviceStatus,
                 reqid = reqid
             };
@@ -89,6 +89,7 @@ namespace Photino.HelloPhotino.Vue.Handlers
             var results = new List<string>();
             var resultb = new List<bool>();
             var reqid = message.reqid;
+            var type = message.type;
 
             foreach (var serviceName in serviceNames)
             {
@@ -117,7 +118,7 @@ namespace Photino.HelloPhotino.Vue.Handlers
             var response = new
             {
                 result = result,
-                message = result ? "启动成功" : "部分或全部服务启动失败",
+                type = type,
                 payload = string.Join("\n", results),
                 reqid = reqid
             };
@@ -132,6 +133,7 @@ namespace Photino.HelloPhotino.Vue.Handlers
             var results = new List<string>();
             var resultb = new List<bool>();
             var reqid = message.reqid;
+            var type = message.type;
 
             foreach (var serviceName in serviceNames)
             {
@@ -161,7 +163,7 @@ namespace Photino.HelloPhotino.Vue.Handlers
             var response = new
             {
                 result = result,
-                message = result ? "启动成功" : "部分或全部服务启动失败",
+                message = type,
                 payload = string.Join("\n", results),
                 reqid = reqid
             };

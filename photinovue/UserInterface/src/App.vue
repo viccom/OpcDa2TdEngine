@@ -11,7 +11,19 @@ import "element-plus/dist/index.css"; // 确保引入样式
 import { WarnTriangleFilled } from '@element-plus/icons-vue'; // 引入 Search 图标
 
 
-const inputMsg = ref<string>(""); 
+const inputMsg = ref<string>("");
+
+const ServiceInstall = ref(false); // 新增：本地服务开关
+const ServiceisRunning = ref(false); // 新增：本地服务启停按钮
+// 新增：全局状态
+const overViewStatus = ref<{
+  opcDaSub: boolean | null;
+  tdEnginePub: boolean | null;
+}>({ opcDaSub: null, tdEnginePub: null });
+
+// 全局日志
+const appLog = ref<string[]>([]);
+
 // 发送消息到 C#
 const sendCSharp = () => {
   const message = JSON.stringify({
@@ -55,12 +67,22 @@ onMounted(() => {
             .map(([serviceName, isRunning]) => `${serviceName}: ${isRunning ? "运行中" : "未运行"}`)
             .join(", ");
           inputMsg.value = `服务状态: ${statusMessages}`;
+          //如果response正确解析，赋值给页面组件
+          if (parsedResponse.type == "isInstall" && parsedResponse.result === true) {
+              ServiceInstall.value = parsedResponse.result;
+          } 
+          if (parsedResponse.type == "isRun" && parsedResponse.result === false) {
+            ServiceisRunning.value = parsedResponse.result;
+          }
         } else {
           console.error("C# 返回错误:", parsedResponse?.result);
           console.log("服务状态查询结果:", JSON.stringify(parsedResponse?.payload));
           inputMsg.value = `错误: ${JSON.stringify(parsedResponse?.payload, null, 2)}`;
         }
-      } catch (e) {
+
+      } 
+      catch (e) 
+      {
         console.error("解析C#消息失败:", e, "原始消息:", response);
         inputMsg.value = `非法响应格式: ${response}`;
       }
@@ -83,15 +105,7 @@ const rtDataList = ref<
   }[]
 >([]);
 
-const ServiceInstall = ref(false); // 新增：本地服务开关
-// 新增：全局状态
-const overViewStatus = ref<{
-  opcDaSub: boolean | null;
-  tdEnginePub: boolean | null;
-}>({ opcDaSub: null, tdEnginePub: null });
 
-// 全局日志
-const appLog = ref<string[]>([]);
 
 function log(msg: string) {
   const now = new Date();
@@ -425,9 +439,15 @@ watch(
           <el-switch 
             style="padding: 4px 12px; height: 24px; --el-switch-on-color: #13ce66; --el-switch-off-color: #ff4949" 
             v-model="ServiceInstall" 
-            @change="testServiceInstall" active-text="已安装" inactive-text="未安装" /> <!-- 添加测试方法 -->
-          <el-button style="padding: 4px 12px; background: #42b983; color: white; border: none; border-radius: 4px; cursor: pointer; height: 24px;">
-            启动
+            @change="testServiceInstall" 
+            :active-text="ServiceInstall ? '已安装' : ''" 
+            :inactive-text="ServiceInstall ? '' : '未安装'"
+          /> <!-- 添加测试方法 -->
+          <el-button
+            style="padding: 4px 12px; border: none; border-radius: 4px; cursor: pointer; height: 24px;"
+            :type="ServiceisRunning ? 'success' : 'info'"
+          >
+            {{ ServiceisRunning ? '已启动' : '已停止' }}
           </el-button>
         </div>
         <div style="display: flex; align-items: center; margin-left: 20px; height: 100%;">
@@ -470,7 +490,7 @@ watch(
         <!-- 新增：Debug 模式开关 -->
         <div style="display: flex; align-items: center; margin-left: 20px; height: 100%;">
           <label style="margin-left: 20px">
-            <input type="checkbox" v-model="debugMode" /> Debug 模式
+            <input type="checkbox" v-model="debugMode" /> MQTT消息
           </label>
         </div>
       </div>
