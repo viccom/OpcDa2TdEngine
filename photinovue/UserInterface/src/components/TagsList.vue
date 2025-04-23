@@ -24,7 +24,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, nextTick, inject, onBeforeUnmount, defineExpose } from 'vue';
+import { ref, computed, onMounted, nextTick, inject, onBeforeUnmount, defineExpose, type Ref } from 'vue'
 import { ElTableV2, ElMessage } from 'element-plus';
 import type { AnyColumn } from 'element-plus/es/components/table-v2/src/common';
 
@@ -39,6 +39,10 @@ const data = ref<TagRow[]>([]);
 
 // 获取全局 restartFlag
 const restartFlag = inject<{ value: boolean }>('restartFlag'); // 注入变量
+const overViewStatus = inject<Ref<{ opcDaSub: boolean | null, tdEnginePub: boolean | null, mqttSub: boolean | null }>>(
+  'overViewStatus',
+  ref({ opcDaSub: null, tdEnginePub: null,mqttSub: null }) // 默认值结构保持一致
+)
 // 2. 获取全局 mqttClient
 const mqttClient = inject<any>('mqttClient');
 let mqttClientId = '';
@@ -126,6 +130,10 @@ function onLoadTags() {
     ElMessage.error('mqttClient 未连接，请检查连接状态！');
     return;
   }
+  if (!overViewStatus.value.mqttSub) {
+    ElMessage.error('后端服务OPCDA2TDengine未启动，请检查连接状态！');
+    return;
+  }
   mqttClientId = (window as any).mqttClientId || mqttClient.value.options?.clientId || mqttClient.value.options?.clientid || '';
   if (!mqttClientId) {
     ElMessage.error('无法获取 MQTT ClientId');
@@ -182,6 +190,10 @@ function onLoadTags() {
 function onSaveTags() {
   if (!mqttClient || !mqttClient.value) {
     ElMessage.error('mqttClient 未连接，请检查连接状态！');
+    return;
+  }
+  if (!overViewStatus.value.mqttSub) {
+    ElMessage.error('后端服务OPCDA2TDengine未启动，请检查连接状态！');
     return;
   }
   if (!data.value.length) {

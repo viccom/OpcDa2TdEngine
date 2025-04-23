@@ -31,10 +31,15 @@ namespace OpcDaClient
         private LiteDatabase _liteDb;
         private ILiteCollection<BsonDocument> _dataCollection;
         private readonly ILogger _log;
+        private readonly string _configPath;
+        private readonly string _csvPath;
         
 
         public OPC_LiteDB()
         {
+            // 初始化路径
+            _configPath = Path.Combine(AppContext.BaseDirectory, "config", "config.toml");
+            _csvPath = Path.Combine(AppContext.BaseDirectory, "config", "items.csv");
             _mqttOptions = new MqttClientOptionsBuilder()
                 .WithTcpServer("127.0.0.1", 6883)
                 .WithCredentials("admin", "123456")
@@ -82,8 +87,8 @@ namespace OpcDaClient
             _running = false;
             if (_opcThread != null && _opcThread.IsAlive)
             {
-                _log.Information("正在读取配置文件config.toml...");
-                mqLog.Info("OPCDA_Sub", "正在读取配置文件config.toml...");
+                _log.Information("线程退出中...");
+                mqLog.Info("OPCDA_Sub", "线程退出中...");
                 _opcThread.Join(2000);
             }
         }
@@ -93,31 +98,54 @@ namespace OpcDaClient
             // Console.WriteLine("正在读取配置文件config.toml...");
             _log.Information("正在读取配置文件config.toml...");
             mqLog.Info("OPCDA_Sub", "正在读取配置文件config.toml...");
-            var config = Toml.ReadFile<Config>("config.toml");
+
+            if (!File.Exists(_configPath))
+            {
+                _log.Error($"未找到{_configPath}文件,退出OPCDA_Sub线程");
+                mqLog.Error("OPCDA_Sub", $"未找到{_configPath}文件,退出OPCDA_Sub线程");
+                Program.opcDaSubStatus = false;
+                return;
+            }
+            var config = Toml.ReadFile<Config>(_configPath);
             // Console.WriteLine($"已加载配置文件: {Newtonsoft.Json.JsonConvert.SerializeObject(config)}");
             _log.Information($"已加载配置文件: {Newtonsoft.Json.JsonConvert.SerializeObject(config)}");
             mqLog.Info("OPCDA_Sub", $"已加载配置文件: {Newtonsoft.Json.JsonConvert.SerializeObject(config)}");
 
             if (config == null)
             {
-                throw new Exception("配置文件读取失败，返回null");
+                _log.Error("配置文件读取失败，返回null,退出OPCDA_Sub线程");
+                mqLog.Error("OPCDA_Sub", "配置文件读取失败，返回null,退出OPCDA_Sub线程");
+                Program.opcDaSubStatus = false;
+                return;
             }
             if (config.OpcDa == null)
             {
-                throw new Exception("配置文件中缺少OpcDa配置节");
+                _log.Error("配置文件中缺少OpcDa配置节,退出OPCDA_Sub线程");
+                mqLog.Error("OPCDA_Sub", "配置文件中缺少OpcDa配置节,退出OPCDA_Sub线程");
+                Program.opcDaSubStatus = false;
+                return;
             }
             // Console.WriteLine($"OpcDa配置节: Host={config.OpcDa.Host}, ProgID={config.OpcDa.ProgID}");
             _log.Information($"OpcDa配置节: Host={config.OpcDa.Host}, ProgID={config.OpcDa.ProgID}");
             mqLog.Info("OPCDA_Sub", $"OpcDa配置节: Host={config.OpcDa.Host}, ProgID={config.OpcDa.ProgID}");
             if (string.IsNullOrEmpty(config.OpcDa.Host) || string.IsNullOrEmpty(config.OpcDa.ProgID))
             {
-                throw new Exception("OpcDa配置节中缺少Host或ProgID");
+                _log.Error("OpcDa配置节中缺少Host或ProgID,退出OPCDA_Sub线程");
+                mqLog.Error("OPCDA_Sub", "OpcDa配置节中缺少Host或ProgID,退出OPCDA_Sub线程");
+                Program.opcDaSubStatus = false;
+                return;
             }
-
-            var items = ReadItemsFromCsv("items.csv");
+            if (!File.Exists(_csvPath))
+            {
+                _log.Error($"未找到{_csvPath}文件,退出OPCDA_Sub线程");
+                mqLog.Error("OPCDA_Sub", $"未找到{_csvPath}文件,退出OPCDA_Sub线程");
+                Program.opcDaSubStatus = false;
+                return;
+            }
+            var items = ReadItemsFromCsv(_csvPath);
             // Console.WriteLine($"已加载{items.Length}个OPC项");
-            _log.Information($"已加载{items.Length}个OPC项");
-            mqLog.Info("OPCDA_Sub", $"已加载{items.Length}个OPC项");
+            _log.Information($"从点表读取到{items.Length}个OPC项");
+            mqLog.Info("OPCDA_Sub", $"从点表读取到{items.Length}个OPC项");
 
             int retryInterval = 5000;
             const int maxRetryInterval = 60000;
@@ -264,7 +292,7 @@ namespace OpcDaClient
 
             for (int i = 0; i < items.GetLength(0); i++)
             {
-                var csvLines = File.ReadAllLines("items.csv");
+                var csvLines = File.ReadAllLines(_csvPath);
                 foreach (var line in csvLines.Skip(1))
                 {
                     var parts = line.Split(',');

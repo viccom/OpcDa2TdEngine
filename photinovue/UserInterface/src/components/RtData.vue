@@ -1,6 +1,13 @@
 <template>
   <div>
-    <el-input v-model="filterText" placeholder="输入关键字过滤" style="margin-bottom: 10px; width: 300px;" />
+    <div class="tagslist-toolbar" style="width: 99%;">
+      <el-input v-model="filterText" placeholder="输入关键字过滤" style="width: 300px;" />
+      <div class="tagslist-toolbar-btns">
+        <el-button type="success" @click="clearRTdata">
+          清空数据
+        </el-button>
+      </div>
+    </div>
     <div ref="tableWrapper" style="width: 99%;">
       <ElTableV2
         :columns="columns"
@@ -49,6 +56,7 @@ const handleSort = (params: { key: string; order: 'ASC' | 'DESC' }) => {
   sortDirection.value = params.order;
 };
 
+
 const sortedData = computed(() => {
   const data = filteredData.value.slice();
   if (!sortBy.value) return data;
@@ -93,4 +101,24 @@ onMounted(() => {
 onBeforeUnmount(() => {
   window.removeEventListener('resize', updateTableWidth);
 });
+
+// 新增 clearLog 方法
+const clearRTdata = () => {
+  rtDataList.value = []; // 清空日志数据
+};
+
 </script>
+
+<style scoped>
+.tagslist-toolbar {
+  display: flex;
+  align-items: center;
+  margin-bottom: 10px;
+  width: 100%;
+}
+.tagslist-toolbar-btns {
+  margin-left: auto;
+  display: flex;
+  gap: 10px;
+}
+</style>

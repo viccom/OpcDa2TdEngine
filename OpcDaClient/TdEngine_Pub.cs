@@ -5,6 +5,7 @@ using System.IO;
 using System.Threading;
 using Nett;
 using Opc.Da;
+using OpcDaSubscription;
 using TDengine.Driver;
 using TDengine.Driver.Client;
 using Serilog;
@@ -27,11 +28,14 @@ namespace OpcDaClient
         // 定义最大队列大小常量
         private const int MaxQueueSize = 100000;
         // 日志记录
-        private readonly ILogger _log;
+        private readonly ILogger _log;    
+        private readonly string _configPath;
 
         // 构造函数，接收一个OPCDA_Sub实例
         public TdEngine_Pub(OPC_LiteDB opcDaSub)
         {
+            // 初始化路径
+            _configPath = Path.Combine(AppContext.BaseDirectory, "config", "config.toml");
             _opcDaSub = opcDaSub;
             _log = Log.ForContext("Module", "TdEngine_Pub");
         }
@@ -53,6 +57,8 @@ namespace OpcDaClient
             _running = false;
             if (_tdThread != null && _tdThread.IsAlive)
             {
+                _log.Information("线程退出中...");
+                mqLog.Info("TdEngine_Pub", "线程退出中...");
                 _tdThread.Join(2000);
             }
         }
@@ -76,12 +82,20 @@ namespace OpcDaClient
                     mqLog.Info("TdEngine_Pub", "正在读取TDengine配置文件...");
                     try
                     {
-                        config = Toml.ReadFile<OPC_LiteDB.Config>("config.toml");
-
+                        if (!File.Exists(_configPath))
+                        {
+                            _log.Error($"未找到{_configPath}文件,退出TdEngine_Pub线程");
+                            mqLog.Error("TdEngine_Pub", $"未找到{_configPath}文件,退出TdEngine_Pub线程");
+                            Program.tdEnginePubStatus = false;
+                            return;
+                        }
+                        config = Toml.ReadFile<OPC_LiteDB.Config>(_configPath);
                         if (config?.TdEngine == null)
                         {
-                            _log.Error("配置文件中缺少TdEngine配置节");
-                            throw new Exception("配置文件中缺少TdEngine配置节");
+                            _log.Error($"配置文件中缺少TdEngine配置节,退出TdEngine_Pub线程");
+                            mqLog.Error("TdEngine_Pub", $"配置文件中缺少TdEngine配置节,退出TdEngine_Pub线程");
+                            Program.tdEnginePubStatus = false;
+                            return;
                         }
                     }
                     catch (Exception ex)
@@ -89,7 +103,8 @@ namespace OpcDaClient
                         // Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] 错误: 读取配置文件失败 - {ex.Message}");
                         _log.Error($"读取配置文件失败 - {ex.Message}");
                         mqLog.Error("TdEngine_Pub", $"读取配置文件失败 - {ex.Message}");
-                        throw;
+                        Program.tdEnginePubStatus = false;
+                        return;
                     }
 
                     // Console.WriteLine($"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] TDengine配置节: Host={config.TdEngine.Host}, Port={config.TdEngine.Port}, Dbname={config.TdEngine.Dbname}");
@@ -208,7 +223,7 @@ namespace OpcDaClient
                                         {
                                             long ts = (long)(item.Timestamp.ToUniversalTime() - new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc)).TotalMilliseconds;
                                             object value = ConvertToTdEngineValue(item.Value);
-                                            rows.Add($"(\"{ts}\", {value})");
+                                            rows.Add($"(\"{ts}\", \"{value}\")");
                                         }
                                         string segment = $"{childTable} USING {superTable} TAGS (\"{childTable}\") VALUES {string.Join(", ", rows)}";
                                         insertSegments.Add(segment);
@@ -289,7 +304,7 @@ namespace OpcDaClient
                 case "uint64": return "BIGINT UNSIGNED";
                 case "float": return "FLOAT";
                 case "double": return "DOUBLE";
-                case "string": return "BINARY(100)";
+                case "string": return "NCHAR(128)";
                 default: return "DOUBLE";
             }
         }

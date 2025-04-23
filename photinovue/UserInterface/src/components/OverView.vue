@@ -61,9 +61,9 @@ import type { Ref } from 'vue'
 
 
 // 修改：确保 inject 的键名与 provide 一致，并设置合理的默认值
-const overViewStatus = inject<Ref<{ opcDaSub: boolean | null, tdEnginePub: boolean | null }>>(
+const overViewStatus = inject<Ref<{ opcDaSub: boolean | null, tdEnginePub: boolean | null, mqttSub: boolean | null }>>(
   'overViewStatus',
-  ref({ opcDaSub: null, tdEnginePub: null }) // 默认值结构保持一致
+  ref({ opcDaSub: null, tdEnginePub: null,mqttSub: null }) // 默认值结构保持一致
 )
 
 // 修改：监听 overViewStatus.value，确保深度监听生效
@@ -72,7 +72,7 @@ watch(
   (newValue) => {
     console.log('OverView received overViewStatus:', newValue)
     // 确保 newValue 不为 null，否则使用默认值
-    const validValue = newValue ?? { opcDaSub: null, tdEnginePub: null }
+    const validValue = newValue ?? { opcDaSub: null, tdEnginePub: null, mqttSub: null }
     overViewStatus.value = validValue // 更新本地状态
     console.log('overViewStatus value:', overViewStatus?.value?.opcDaSub, overViewStatus?.value?.tdEnginePub) // 修改：直接访问 opcDaSub 和 tdEnginePub
   },

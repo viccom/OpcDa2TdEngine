@@ -19,7 +19,8 @@ const ServiceisRunning = ref(false); // 新增：本地服务启停按钮
 const overViewStatus = ref<{
   opcDaSub: boolean | null;
   tdEnginePub: boolean | null;
-}>({ opcDaSub: null, tdEnginePub: null });
+  mqttSub: boolean | null;
+}>({ opcDaSub: null, tdEnginePub: null, mqttSub: null });
 
 // 全局日志
 const appLog = ref<string[]>([]);
@@ -61,18 +62,24 @@ onMounted(() => {
 
         // 检查 parsedResponse 是否包含 result 属性
         if (parsedResponse && parsedResponse.result !== undefined) {
-          // 更新UI显示，增强对 payload 的处理
-          const serviceStatus = parsedResponse.payload;
-          const statusMessages = Object.entries(serviceStatus)
-            .map(([serviceName, isRunning]) => `${serviceName}: ${isRunning ? "运行中" : "未运行"}`)
-            .join(", ");
-          inputMsg.value = `服务状态: ${statusMessages}`;
           //如果response正确解析，赋值给页面组件
-          if (parsedResponse.type == "isInstall" && parsedResponse.result === true) {
+          if (parsedResponse.type == "isInstall") {
+              console.log("响应isInstall");
               ServiceInstall.value = parsedResponse.result;
+              const installStatus = parsedResponse.payload;
+              const installMessages = Object.entries(installStatus)
+                .map(([serviceName, isRunning]) => `${serviceName}: ${isRunning ? "已安装" : "未安装"}`)
+                .join(", ");
+              inputMsg.value = `安装状态: ${installMessages}`;
           } 
-          if (parsedResponse.type == "isRun" && parsedResponse.result === false) {
+          if (parsedResponse.type == "isRun") {
+            console.log("响应isRun");
             ServiceisRunning.value = parsedResponse.result;
+            const serviceStatus = parsedResponse.payload;
+            const statusMessages = Object.entries(serviceStatus)
+              .map(([serviceName, isRunning]) => `${serviceName}: ${isRunning ? "运行中" : "未运行"}`)
+              .join(", ");
+            inputMsg.value = `运行状态: ${statusMessages}`;
           }
         } else {
           console.error("C# 返回错误:", parsedResponse?.result);
@@ -155,6 +162,7 @@ function connectMqtt() {
     mqttClient.value = null;
     messageRegistered = false;
     isMqttConnected.value = false;
+    logSubscribed.value = false;
   }
   log("尝试连接 MQTT Broker...");
 
@@ -181,20 +189,23 @@ function connectMqtt() {
     log("MQTT 连接已关闭");
     overViewStatus.value.opcDaSub = null;
     overViewStatus.value.tdEnginePub = null; 
+    overViewStatus.value.mqttSub = null;
     isMqttConnected.value = false;
     inputDisabled.value = false; // 关闭时启用输入框
   });
   mqttClient.value.on("offline", () => {
     log("MQTT 已离线");
     overViewStatus.value.opcDaSub = null;
-    overViewStatus.value.tdEnginePub = null; 
+    overViewStatus.value.tdEnginePub = null;
+    overViewStatus.value.mqttSub = null;
     isMqttConnected.value = false;
     inputDisabled.value = false; // 离线时启用输入框
   });
   mqttClient.value.on("error", (err: any) => {
     log("MQTT 错误: " + (err?.message || err));
     overViewStatus.value.opcDaSub = null;
-    overViewStatus.value.tdEnginePub = null; 
+    overViewStatus.value.tdEnginePub = null;
+    overViewStatus.value.mqttSub = null;
     isMqttConnected.value = false;
     inputDisabled.value = false; // 连接失败时启用输入框
   });
@@ -228,6 +239,7 @@ function connectMqtt() {
           const data = JSON.parse(message.toString());
           overViewStatus.value.opcDaSub = data.opcDaSub;
           overViewStatus.value.tdEnginePub = data.tdEnginePub;
+          overViewStatus.value.mqttSub = data.mqttSub;
           // console.log('overViewStatus', overViewStatus.value)
         } catch (e) {
           log("解析 /status/apps 消息失败: " + (e as Error).message);
@@ -262,7 +274,9 @@ function disconnectMqtt() {
     messageRegistered = false;
     overViewStatus.value.opcDaSub = null;
     overViewStatus.value.tdEnginePub = null; 
+    overViewStatus.value.mqttSub = null;
     inputDisabled.value = false;
+    logSubscribed.value = false;
   }
 }
 

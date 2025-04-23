@@ -56,7 +56,7 @@ internal class Program
         int windowHeight = Math.Max((int)(screenHeight * 0.8), minHeight);
 
         // Window title declared here for visibility
-        var windowTitle = "Photino.Vue Demo App";
+        var windowTitle = "OPCDA2TDengine GUI";
 
         // Creating a new PhotinoWindow instance with the fluent API
         var window = new PhotinoWindow()

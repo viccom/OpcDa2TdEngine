@@ -20,10 +20,14 @@ namespace OpcDaClient
         private readonly IMqttClientOptions _mqttOptions;
         private bool _running = true;
         private readonly ILogger _log;
+        private readonly string _configPath;
+        private readonly string _csvPath;
         
-
         public Mqtt_Sub()
         {
+            // 初始化路径
+            _configPath = Path.Combine(AppContext.BaseDirectory, "config", "config.toml");
+            _csvPath = Path.Combine(AppContext.BaseDirectory, "config", "items.csv");
             _log = Log.ForContext("Module", "Mqtt_Sub");
             _mqttOptions = new MqttClientOptionsBuilder()
                 .WithTcpServer("127.0.0.1", 6883)
@@ -85,7 +89,8 @@ namespace OpcDaClient
             var appsStatus = new
             {
                 opcDaSub = Program.opcDaSubStatus, // 获取 OPCDA_Sub 线程状态
-                tdEnginePub = Program.tdEnginePubStatus // 获取 TdEngine_Pub 线程状态
+                tdEnginePub = Program.tdEnginePubStatus, // 获取 TdEngine_Pub 线程状态
+                mqttSub = Program.mqttSubStatus // 获取 Mqtt_Sub 线程状态
             };
 
             var mqttdata = JsonConvert.SerializeObject(appsStatus);
@@ -141,18 +146,20 @@ namespace OpcDaClient
             switch (type)
             {
                 case "config":
-                    var config = Toml.ReadFile<Config>("config.toml");
+                    var config = Toml.ReadFile<Config>(_configPath);
                     SendMqttResponse(true, "success", config, reqid, clientId);
                     break;
                 case "tags":
-                    var tags = ReadTagsFromCsv("items.csv");
+                    var tags = ReadTagsFromCsv(_csvPath);
                     SendMqttResponse(true, "success", tags, reqid, clientId);
                     break;
                 case "apps":
                     var appsStatus = new
                     {
                         opcDaSub = Program.opcDaSubStatus, // 获取 OPCDA_Sub 线程状态
-                        tdEnginePub = Program.tdEnginePubStatus // 获取 TdEngine_Pub 线程状态
+                        tdEnginePub = Program.tdEnginePubStatus, // 获取 TdEngine_Pub 线程状态
+                        mqttSub = Program.mqttSubStatus
+                        
                     };
                     SendMqttResponse(true, "success", appsStatus, reqid, clientId);
                     break;
@@ -264,12 +271,12 @@ namespace OpcDaClient
                     break;
                 case "config":
                     var config = JsonConvert.DeserializeObject<Config>(json["data"].ToString());
-                    Toml.WriteFile(config, "config.toml");
+                    Toml.WriteFile(config, _configPath);
                     SendMqttResponse(true, "Configuration updated", null, reqid, clientId);
                     break;
                 case "tags":
                         var tags = JsonConvert.DeserializeObject<List<string[]>>(json["data"].ToString());
-                        WriteTagsToCsv("items.csv", tags);
+                        WriteTagsToCsv(_csvPath, tags);
                         SendMqttResponse(true, "Tags updated", null, reqid, clientId);
                         break;
                 default:
@@ -313,6 +320,7 @@ namespace OpcDaClient
             // 检查文件是否存在
             if (!File.Exists(filePath))
             {
+                _log.Error("未找到CSV文件,退出OPCDA_Sub线程");
                 throw new FileNotFoundException($"CSV文件未找到: {filePath}");
             }
             var lines = File.ReadAllLines(filePath);

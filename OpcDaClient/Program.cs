@@ -16,6 +16,7 @@ namespace OpcDaSubscription
         // 将状态变量定义为静态成员
         public static bool opcDaSubStatus = false;
         public static bool tdEnginePubStatus = false;
+        public static bool mqttSubStatus = false;
         
         // 新增：静态字段保存 tdEnginePub 实例
         public static TdEngine_Pub tdEnginePubInstance;
@@ -45,14 +46,15 @@ namespace OpcDaSubscription
             tdEnginePubInstance = tdEnginePub;
             var exitEvent = new ManualResetEvent(false);
             
-            // 修改退出事件处理程序
+            // 使用静态字段的事件处理程序
             Console.CancelKeyPress += (sender, e) => 
             {
-                opcDaSub.Stop();
-                tdEnginePub.Stop();
-                mqttSub.Stop();
+                opcDaSubInstance?.Stop();
+                tdEnginePubInstance?.Stop();
+                MqttSubInstance?.Stop();
                 e.Cancel = true;
                 exitEvent.Set();
+                Log.ForContext("Module", "Main").Information("收到 Ctrl+C 信号，正在停止服务...");
             };
             Log.ForContext("Module", "Main")
                 .Information("主程序启动");
@@ -62,6 +64,7 @@ namespace OpcDaSubscription
             tdEnginePub.Start();
             tdEnginePubStatus = true;
             mqttSub.Start();
+            mqttSubStatus = true;
 
             // 启动 NancyFX Web服务，传入自定义Bootstrapper
             var hostConfig = new HostConfiguration { UrlReservations = { CreateAutomatically = true } };
@@ -82,6 +85,7 @@ namespace OpcDaSubscription
             tdEnginePub.Stop();
             tdEnginePubStatus = false;
             mqttSub.Stop();
+            mqttSubStatus = false;
             Log.ForContext("Module", "Main")
                 .Information("主程序结束");
         }

@@ -5,7 +5,7 @@
 		<RootNamespace>PhotinoGUI.Vue</RootNamespace>
 	</PropertyGroup>
 	<PropertyGroup>
-		<OutputType>Exe</OutputType>
+		<OutputType>WinExe</OutputType>
 		<TargetFramework>net8.0-windows</TargetFramework>
 		<UseWindowsForms>true</UseWindowsForms>
 		<Platforms>AnyCPU</Platforms>
@@ -14,7 +14,9 @@
 		<!-- Generate embedded file manifest when using the Photino.NET StaticFileServer -->
 		<GenerateEmbeddedFilesManifest>true</GenerateEmbeddedFilesManifest>
 	</PropertyGroup>
-
+	<PropertyGroup>
+	  <ApplicationIcon>app.ico</ApplicationIcon>
+	</PropertyGroup>
 	<ItemGroup>
 		<PackageReference Include="Microsoft.AspNet.SignalR.Client" Version="2.4.3" />
 		<PackageReference Include="Microsoft.Extensions.FileProviders.Embedded" Version="8.0.10" />

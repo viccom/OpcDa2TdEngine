@@ -62,6 +62,11 @@ const tdPassword = ref('');
 import type { Ref } from 'vue';
 // 获取全局 restartFlag
 const restartFlag = inject<Ref<boolean>>('restartFlag'); // 注入变量
+// 修改：确保 inject 的键名与 provide 一致，并设置合理的默认值
+const overViewStatus = inject<Ref<{ opcDaSub: boolean | null, tdEnginePub: boolean | null, mqttSub: boolean | null }>>(
+  'overViewStatus',
+  ref({ opcDaSub: null, tdEnginePub: null,mqttSub: null }) // 默认值结构保持一致
+)
 // 获取全局 mqttClient
 const mqttClient = inject<any>('mqttClient');
 // 获取全局 mqttClientId（App.vue 里 clientid 生成后可挂到 window 或 provide）
@@ -79,6 +84,14 @@ function randomReqId() {
 }
 
 function saveConfig() {
+  if (!mqttClient || !mqttClient.value) {
+    ElMessage.error('mqttClient 未连接，请检查连接状态！');
+    return;
+  }
+  if (!overViewStatus.value.mqttSub) {
+    ElMessage.error('后端服务OPCDA2TDengine未启动，请检查连接状态！');
+    return;
+  }
   // 校验所有表单项不能为空
   if (
     !opcHost.value.trim() ||
@@ -92,10 +105,7 @@ function saveConfig() {
     ElMessage.error('所有配置项都不能为空！');
     return;
   }
-  if (!mqttClient || !mqttClient.value) {
-    ElMessage.error('mqttClient 未连接，请检查连接状态！');
-    return;
-  }
+
   mqttClientId = (window as any).mqttClientId || mqttClient.value.options?.clientId || mqttClient.value.options?.clientid || '';
   if (!mqttClientId) {
     ElMessage.error('无法获取 MQTT ClientId');
@@ -161,6 +171,10 @@ function loadConfig() {
   console.log('[Configuration.vue] loadConfig 被调用');
   if (!mqttClient || !mqttClient.value) {
     ElMessage.error('mqttClient 未连接，请检查连接状态！');
+    return;
+  }
+  if (!overViewStatus.value.mqttSub) {
+    ElMessage.error('后端服务OPCDA2TDengine未启动，请检查连接状态！');
     return;
   }
   // 获取 clientid

@@ -19,27 +19,27 @@ namespace Photino.HelloPhotino.Vue.Handlers
 
             var serviceNames = new[] { "opcda2tdengine", "mochi_broker" };
             // 查询服务状态
-            var serviceStatus = new Dictionary<string, bool>();
+            var installStatus = new Dictionary<string, bool>();
             foreach (var serviceName in serviceNames)
             {
                 try
                 {
                     var service = ServiceController.GetServices().FirstOrDefault(s => s.ServiceName == serviceName);
-                    serviceStatus[serviceName] = service != null;
+                    installStatus[serviceName] = service != null;
                 }
                 catch
                 {
-                    serviceStatus[serviceName] = false;
+                    installStatus[serviceName] = false;
                 }
             }
 
             // 构造返回结果
-            var result = serviceStatus.All(kvp => kvp.Value);
+            var result = installStatus.All(kvp => kvp.Value);
             var response = new
             {
                 result = result,
                 type = type,
-                payload = serviceStatus,
+                payload = installStatus,
                 reqid = reqid
             };
 
