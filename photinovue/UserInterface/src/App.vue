@@ -105,7 +105,12 @@ const rtDataList = ref<
   }[]
 >([]);
 
-
+const logdata = ref<{
+  ts: string;
+  level: string;
+  module: string;
+  message: string;
+}[]>([]);
 
 function log(msg: string) {
   const now = new Date();
@@ -127,6 +132,7 @@ const manualConnect = ref(false); // 新增：手动连接MQTT的状态
 
 const restartFlag = ref(false); // 新增：重启按钮的状态
 const inRestart = ref(false); // 新增：重启状态
+const logSubscribed = ref(false); // 记录日志订阅状态
 
 const paused = ref(false); // 新增：日志暂停状态
 const displayedLog = computed(() => {
@@ -227,6 +233,19 @@ function connectMqtt() {
           log("解析 /status/apps 消息失败: " + (e as Error).message);
         }
       }
+      else if (topic === '/logs/apps') {
+        try {
+          const log = JSON.parse(message.toString());
+          logdata.value.push({
+            ts: log.Timestamp,
+            level: log.Level,
+            module: log.Module,
+            message: log.Message
+          });
+        } catch (e) {
+          console.error('解析 MQTT 消息失败:', e);
+        }
+      }
     });
     messageRegistered = true;
 
@@ -257,6 +276,43 @@ function handleMqttButton() {
     manualConnect.value = false;
   }
 }
+const handleLogSub = () => {
+  if (!mqttClient || !mqttClient.value) {
+    console.error('mqttClient 未连接，请检查连接状态！');
+    return;
+  }
+
+  if (!logSubscribed.value) {
+    try {
+      // 订阅主题
+      mqttClient.value.subscribe('/logs/apps', (err: any) => {
+        if (err) {
+          console.error('订阅失败:', err);
+          return;
+        }
+        console.log('订阅成功');
+        logSubscribed.value = true;
+      });
+    } catch (e) {
+      console.error('订阅过程中发生异常:', e);
+    }
+  } else {
+    try {
+      // 取消订阅
+      mqttClient.value.unsubscribe('/logs/apps', (err: any) => {
+        if (err) {
+          console.error('取消订阅失败:', err);
+          return;
+        }
+        console.log('取消订阅成功');
+        logSubscribed.value = false;
+      });
+      
+    } catch (e) {
+      console.error('取消订阅过程中发生异常:', e);
+    }
+  }
+};
 
 // 新增：重启按钮逻辑
 function randomReqId() {
@@ -342,9 +398,12 @@ onBeforeUnmount(() => {
 // provide 全局状态
 provide("mqttClient", mqttClient);
 provide("rtDataList", rtDataList);
+provide("logdata", logdata);
+provide('handleLogSub', handleLogSub);
 provide("overViewStatus", overViewStatus);
 provide("appLog", appLog);
-provide('restartFlag', restartFlag); // 提供变量给子组件
+provide('restartFlag', restartFlag);
+provide('logSubscribed', logSubscribed);
 
 const tabs = [
   { name: "概览", key: "overview" },

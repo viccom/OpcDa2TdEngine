@@ -144,17 +144,22 @@ namespace OpcDaClient
                     _log.Information("订阅组创建成功");
                     mqLog.Info("OPCDA_Sub","订阅组创建成功");
 
-                    items = group.AddItems(items);
+                    group.AddItems(items);
                     // Console.WriteLine("OPC项添加成功");
-                    _log.Information("OPC项添加成功");
-                    mqLog.Info("OPCDA_Sub","OPC项添加成功");
+                    _log.Information($"点表文件有效OPC_item {items.Length} 个，OPC组成功注册 {group.Items.Length} 个OPC_item");
+                    mqLog.Info("OPCDA_Sub",$"点表文件有效OPC_item {items.Length} 个，OPC组成功注册 {group.Items.Length} 个OPC_item");
+                    if (group.Items.Length != items.Length)
+                    {
+                        _log.Error($"订阅组中存在无效OPC_item {items.Length - group.Items.Length} 个");
+                        mqLog.Error("OPCDA_Sub",$"订阅组中存在无效OPC_item {items.Length - group.Items.Length} 个");
+                    }
 
                     try
                     {
                         ItemValueResult[] syncValues = group.Read(group.Items);
                         // Console.WriteLine("同步读数据成功");
-                        _log.Information("同步读数据成功");
-                        mqLog.Info("OPCDA_Sub","同步读数据成功");
+                        _log.Information($"组内一共：{group.Items.Length} 个OPC_item；同步读数据成功{syncValues.Length}条");
+                        mqLog.Info("OPCDA_Sub",$"组内一共：{group.Items.Length} 条item；同步读数据成功{syncValues.Length}条");
                         _sync = true;
                         foreach (ItemValueResult value in syncValues)
                         {
