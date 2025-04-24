@@ -72,7 +72,7 @@ namespace OpcDaClient
                 }
 
                 // 新增：启动定时任务，每隔1秒发布状态
-                Task.Run(async () =>
+                _ = Task.Run(async () =>
                 {
                     while (_running)
                     {
@@ -271,6 +271,12 @@ namespace OpcDaClient
                     break;
                 case "config":
                     var config = JsonConvert.DeserializeObject<Config>(json["data"].ToString());
+                    // 确保文件目录存在
+                    var directory = Path.GetDirectoryName(_configPath);
+                    if (!string.IsNullOrEmpty(directory) && !Directory.Exists(directory))
+                    {
+                        Directory.CreateDirectory(directory);
+                    }
                     Toml.WriteFile(config, _configPath);
                     SendMqttResponse(true, "Configuration updated", null, reqid, clientId);
                     break;

@@ -17,13 +17,16 @@ namespace OpcDaSubscription
         public static bool opcDaSubStatus = false;
         public static bool tdEnginePubStatus = false;
         public static bool mqttSubStatus = false;
+        public static bool opcToolsStatus = false;
         
         // 新增：静态字段保存 tdEnginePub 实例
         public static TdEngine_Pub tdEnginePubInstance;
         // 新增：静态字段保存 OPCDA_Sub 实例
         public static OPC_LiteDB opcDaSubInstance;
-        // 新增：静态字段保存 tdEnginePub 实例
+        // 新增：静态字段保存 Mqtt_Sub 实例
         public static Mqtt_Sub MqttSubInstance;
+        // 新增：静态字段保存 OPC_Tools 实例
+        public static OPC_Tools opcToolsInstance;
         
         static async Task Main(string[] args)
         {
@@ -41,6 +44,7 @@ namespace OpcDaSubscription
             var opcDaSub = new OPC_LiteDB();
             var tdEnginePub = new TdEngine_Pub(opcDaSub);
             var mqttSub = new Mqtt_Sub();
+            var opcTools = new OPC_Tools();
             // 赋值给静态字段，供其他模块调用
             opcDaSubInstance = opcDaSub;
             tdEnginePubInstance = tdEnginePub;
@@ -52,6 +56,7 @@ namespace OpcDaSubscription
                 opcDaSubInstance?.Stop();
                 tdEnginePubInstance?.Stop();
                 MqttSubInstance?.Stop();
+                opcToolsInstance?.Stop();
                 e.Cancel = true;
                 exitEvent.Set();
                 Log.ForContext("Module", "Main").Information("收到 Ctrl+C 信号，正在停止服务...");
@@ -65,6 +70,8 @@ namespace OpcDaSubscription
             tdEnginePubStatus = true;
             mqttSub.Start();
             mqttSubStatus = true;
+            opcTools.Start();
+            opcToolsStatus = true;
 
             // 启动 NancyFX Web服务，传入自定义Bootstrapper
             var hostConfig = new HostConfiguration { UrlReservations = { CreateAutomatically = true } };
@@ -86,6 +93,8 @@ namespace OpcDaSubscription
             tdEnginePubStatus = false;
             mqttSub.Stop();
             mqttSubStatus = false;
+            opcTools.Stop();
+            opcToolsStatus = false;
             Log.ForContext("Module", "Main")
                 .Information("主程序结束");
         }

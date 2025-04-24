@@ -43,6 +43,26 @@
       </div>
     </div>
 
+    <div class="service-row">
+      <div class="service-status">
+        <h3>主机CPU资源</h3>
+        <p>
+          总体负载：
+          <span :class="overViewStatus?.opcDaSub === true ? 'status-running' : (overViewStatus?.opcDaSub === false ? 'status-stopped' : '')">
+            {{ overViewStatus?.opcDaSub === true ? '运行中' : (overViewStatus?.opcDaSub === false ? '已停止' : '--') }}
+          </span>
+        </p>
+      </div>
+      <div class="service-status">
+        <h3>主机内存资源</h3>
+        <p>
+          总体负载：
+          <span :class="overViewStatus?.tdEnginePub === true ? 'status-running' : (overViewStatus?.tdEnginePub === false ? 'status-stopped' : '')">
+            {{ overViewStatus?.tdEnginePub === true ? '运行中' : (overViewStatus?.tdEnginePub === false ? '已停止' : '--') }}
+          </span>
+        </p>
+      </div>
+    </div>
   </div>
 </template>
 

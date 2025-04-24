@@ -164,6 +164,8 @@ namespace OpcDaClient
 
                     SubscriptionState groupState = new SubscriptionState();
                     groupState.Name = "Group";
+                    groupState.ClientHandle = Guid.NewGuid().ToString();
+                    groupState.ServerHandle = null;
                     groupState.Active = true;
                     groupState.UpdateRate = 1000;
                     groupState.Deadband = 0;
